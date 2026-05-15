@@ -1,0 +1,7 @@
+adapters: []
+privacy:
+  plaintext_reviewer: false
+  exclude_reason: false
+otel:
+  exporter: otlp
+  endpoint: "http://localhost:4317"

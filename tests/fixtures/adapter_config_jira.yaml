@@ -1,0 +1,20 @@
+adapters:
+  - source: jira
+    webhook_path: /webhook/jira
+    field_mapping:
+      decision_id: "issue.customfield_10042"
+      corrected_action: "issue.resolution.name"
+      reviewer: "issue.assignee.emailAddress"
+      timestamp: "issue.updated"
+      reason: "issue.resolution.description"
+    defaults:
+      source_system: jira
+      service: fraud-detect
+
+privacy:
+  plaintext_reviewer: false
+  exclude_reason: false
+
+otel:
+  exporter: otlp
+  endpoint: "http://localhost:4317"
