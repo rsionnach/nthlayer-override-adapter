@@ -56,9 +56,19 @@ def load_config(path: str | Path) -> AdapterConfig:
     if not isinstance(raw, dict):
         raise ConfigError(f"top-level config must be a mapping, got {type(raw).__name__}")
 
-    adapters = _parse_adapters(raw.get("adapters") or [])
+    adapters_raw = raw.get("adapters") or []
+    if not isinstance(adapters_raw, list):
+        raise ConfigError(
+            f"'adapters' must be a list, got {type(adapters_raw).__name__}"
+        )
+    adapters = _parse_adapters(adapters_raw)
     privacy = _parse_privacy(raw.get("privacy") or {})
-    otel_endpoint = (raw.get("otel") or {}).get("endpoint")
+    otel_raw = raw.get("otel") or {}
+    if not isinstance(otel_raw, dict):
+        raise ConfigError(
+            f"'otel' must be a mapping, got {type(otel_raw).__name__}"
+        )
+    otel_endpoint = otel_raw.get("endpoint")
 
     return AdapterConfig(adapters=adapters, privacy=privacy, otel_endpoint=otel_endpoint)
 
@@ -76,18 +86,34 @@ def _parse_adapters(raw_adapters: list[Any]) -> list[WebhookAdapter]:
         if path in seen_paths:
             raise ConfigError(f"adapter[{idx}] duplicate webhook_path: {path}")
         seen_paths.add(path)
+        field_mapping_raw = entry["field_mapping"]
+        if not isinstance(field_mapping_raw, dict):
+            raise ConfigError(
+                f"adapter[{idx}] field_mapping must be a mapping, "
+                f"got {type(field_mapping_raw).__name__}"
+            )
+        defaults_raw = entry.get("defaults") or {}
+        if not isinstance(defaults_raw, dict):
+            raise ConfigError(
+                f"adapter[{idx}] defaults must be a mapping, "
+                f"got {type(defaults_raw).__name__}"
+            )
         adapters.append(
             WebhookAdapter(
                 source=entry["source"],
                 webhook_path=path,
-                field_mapping=dict(entry["field_mapping"]),
-                defaults=dict(entry.get("defaults") or {}),
+                field_mapping=dict(field_mapping_raw),
+                defaults=dict(defaults_raw),
             )
         )
     return adapters
 
 
-def _parse_privacy(raw_privacy: dict[str, Any]) -> OverridePrivacyConfig:
+def _parse_privacy(raw_privacy: Any) -> OverridePrivacyConfig:
+    if not isinstance(raw_privacy, dict):
+        raise ConfigError(
+            f"'privacy' must be a mapping, got {type(raw_privacy).__name__}"
+        )
     return OverridePrivacyConfig(
         plaintext_reviewer=bool(raw_privacy.get("plaintext_reviewer", False)),
         exclude_reason=bool(raw_privacy.get("exclude_reason", False)),

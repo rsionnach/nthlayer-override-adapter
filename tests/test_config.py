@@ -85,3 +85,46 @@ class TestValidation:
     def test_missing_file_raises(self, tmp_path: Path) -> None:
         with pytest.raises(ConfigError, match="not found"):
             load_config(tmp_path / "absent.yaml")
+
+
+class TestTypeGuards:
+    def test_adapters_non_list_raises(self, tmp_path: Path) -> None:
+        target = tmp_path / "bad.yaml"
+        target.write_text("adapters: not-a-list\n")
+        with pytest.raises(ConfigError, match=r"'adapters' must be a list"):
+            load_config(target)
+
+    def test_field_mapping_non_dict_raises(self, tmp_path: Path) -> None:
+        target = tmp_path / "bad.yaml"
+        target.write_text(
+            "adapters:\n"
+            "  - source: x\n"
+            "    webhook_path: /webhook/x\n"
+            "    field_mapping: not-a-mapping\n"
+        )
+        with pytest.raises(ConfigError, match="field_mapping must be a mapping"):
+            load_config(target)
+
+    def test_defaults_non_dict_raises(self, tmp_path: Path) -> None:
+        target = tmp_path / "bad.yaml"
+        target.write_text(
+            "adapters:\n"
+            "  - source: x\n"
+            "    webhook_path: /webhook/x\n"
+            "    field_mapping: {decision_id: a, corrected_action: b, reviewer: c}\n"
+            "    defaults: not-a-mapping\n"
+        )
+        with pytest.raises(ConfigError, match="defaults must be a mapping"):
+            load_config(target)
+
+    def test_privacy_non_dict_raises(self, tmp_path: Path) -> None:
+        target = tmp_path / "bad.yaml"
+        target.write_text("adapters: []\nprivacy: not-a-mapping\n")
+        with pytest.raises(ConfigError, match=r"'privacy' must be a mapping"):
+            load_config(target)
+
+    def test_otel_non_dict_raises(self, tmp_path: Path) -> None:
+        target = tmp_path / "bad.yaml"
+        target.write_text("adapters: []\notel: not-a-mapping\n")
+        with pytest.raises(ConfigError, match=r"'otel' must be a mapping"):
+            load_config(target)
