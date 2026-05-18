@@ -1,0 +1,44 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write  # trusted publishing
+
+jobs:
+  release-please:
+    if: ${{ github.event_name != 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: googleapis/release-please-action@v4
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  publish:
+    if: ${{ startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v7
+      - name: build
+        run: uv build
+      - name: twine check
+        run: |
+          uv pip install --system twine
+          twine check dist/*
+      - name: smoke gate (Docker)
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}/dist:/dist:ro" \
+            -v "${{ github.workspace }}/tests/smoke:/smoke:ro" \
+            python:3.11-slim bash -c "
+              pip install --no-cache-dir /dist/*.whl pytest &&
+              pytest /smoke -v
+            "
+      - name: publish
+        uses: pypa/gh-action-pypi-publish@release/v1
