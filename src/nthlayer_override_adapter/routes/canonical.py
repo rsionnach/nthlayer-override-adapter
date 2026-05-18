@@ -32,12 +32,16 @@ def register_canonical_routes(
         try:
             payload = await request.json()
         except json.JSONDecodeError as exc:
-            return _validation_response("malformed_json", str(exc))
+            return _validation_response(
+                endpoint="canonical", reason="malformed_json", detail=str(exc)
+            )
 
         try:
             event = _event_from_payload(payload)
         except (ValueError, TypeError) as exc:
-            return _validation_response("invalid_body", str(exc))
+            return _validation_response(
+                endpoint="canonical", reason="invalid_body", detail=str(exc)
+            )
 
         emit_override(event, privacy)
         requests_total.labels(endpoint="canonical", status="accepted").inc()
@@ -47,17 +51,18 @@ def register_canonical_routes(
         try:
             payload = await request.json()
         except json.JSONDecodeError as exc:
-            return _validation_response("malformed_json", str(exc))
+            return _validation_response(endpoint="batch", reason="malformed_json", detail=str(exc))
 
         if not isinstance(payload, dict) or "overrides" not in payload:
             return _validation_response(
-                "invalid_body",
-                "batch body must be a JSON object with an 'overrides' array",
+                endpoint="batch",
+                reason="invalid_body",
+                detail="batch body must be a JSON object with an 'overrides' array",
             )
         entries = payload["overrides"]
         if not isinstance(entries, list):
             return _validation_response(
-                "invalid_body", "'overrides' must be an array",
+                endpoint="batch", reason="invalid_body", detail="'overrides' must be an array",
             )
 
         result = _process_batch(entries, privacy=privacy)
@@ -131,7 +136,7 @@ def _parse_iso_timestamp(value: str) -> datetime:
     return parsed
 
 
-def _validation_response(reason: str, detail: str) -> JSONResponse:
+def _validation_response(*, endpoint: str, reason: str, detail: str) -> JSONResponse:
     validation_errors_total.labels(reason=reason).inc()
-    requests_total.labels(endpoint="canonical", status="rejected").inc()
+    requests_total.labels(endpoint=endpoint, status="rejected").inc()
     return JSONResponse({"detail": detail}, status_code=400)
