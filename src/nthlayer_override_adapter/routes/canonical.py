@@ -1,8 +1,9 @@
-"""Canonical POST /api/v1/overrides and /batch route handlers."""
+"""Canonical POST /api/v1/overrides and /api/v1/overrides/batch route handlers."""
 from __future__ import annotations
 
 import json
 from datetime import datetime
+from typing import Any
 
 from nthlayer_common.overrides import OverrideEvent, OverridePrivacyConfig
 from starlette.applications import Starlette
@@ -15,13 +16,17 @@ from nthlayer_override_adapter.metrics import (
     requests_total,
     validation_errors_total,
 )
-from nthlayer_override_adapter.response import accepted_single
+from nthlayer_override_adapter.response import (
+    BatchResult,
+    accepted_single,
+    build_batch_response,
+)
 
 
 def register_canonical_routes(
     app: Starlette, *, privacy: OverridePrivacyConfig,
 ) -> None:
-    """Mount /api/v1/overrides on the given Starlette app."""
+    """Mount /api/v1/overrides and /api/v1/overrides/batch on the app."""
 
     async def post_single(request: Request) -> JSONResponse:
         try:
@@ -38,7 +43,72 @@ def register_canonical_routes(
         requests_total.labels(endpoint="canonical", status="accepted").inc()
         return JSONResponse(accepted_single(event.decision_id), status_code=201)
 
+    async def post_batch(request: Request) -> JSONResponse:
+        try:
+            payload = await request.json()
+        except json.JSONDecodeError as exc:
+            return _validation_response("malformed_json", str(exc))
+
+        if not isinstance(payload, dict) or "overrides" not in payload:
+            return _validation_response(
+                "invalid_body",
+                "batch body must be a JSON object with an 'overrides' array",
+            )
+        entries = payload["overrides"]
+        if not isinstance(entries, list):
+            return _validation_response(
+                "invalid_body", "'overrides' must be an array",
+            )
+
+        result = _process_batch(entries, privacy=privacy)
+        requests_total.labels(endpoint="batch", status="accepted").inc()
+        return JSONResponse(build_batch_response(result), status_code=200)
+
     app.routes.append(Route("/api/v1/overrides", post_single, methods=["POST"]))
+    app.routes.append(
+        Route("/api/v1/overrides/batch", post_batch, methods=["POST"]),
+    )
+
+
+def _process_batch(
+    entries: list[Any], *, privacy: OverridePrivacyConfig,
+) -> BatchResult:
+    """Walk entries in array order. Last-in-array wins on duplicate decision_id.
+
+    Two-pass: first resolve the winning entry per decision_id without
+    emitting anything, then emit only the winners. This meets the
+    cardinality-match invariant (one emitted span per unique accepted
+    decision_id), which a one-pass emit-as-you-go approach would violate
+    by emitting N spans for N occurrences of the same id.
+    """
+    result = BatchResult()
+    winners: dict[str, tuple[int, OverrideEvent]] = {}
+    superseded: dict[str, list[int]] = {}
+
+    for idx, entry in enumerate(entries):
+        try:
+            event = _event_from_payload(entry)
+        except (ValueError, TypeError) as exc:
+            result.rejected.append({"index": idx, "reason": str(exc)})
+            continue
+
+        prev = winners.get(event.decision_id)
+        if prev is not None:
+            superseded.setdefault(event.decision_id, []).append(prev[0])
+        winners[event.decision_id] = (idx, event)
+
+    for decision_id, (winning_idx, event) in winners.items():
+        emit_override(event, privacy)
+        result.accepted.append(decision_id)
+        if decision_id in superseded:
+            result.duplicates.append(
+                {
+                    "decision_id": decision_id,
+                    "applied_at_index": winning_idx,
+                    "discarded_indices": sorted(superseded[decision_id]),
+                }
+            )
+    return result
 
 
 def _event_from_payload(payload: object) -> OverrideEvent:
