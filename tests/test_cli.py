@@ -33,8 +33,9 @@ class TestArgParse:
 class TestLoadApp:
     def test_load_app_from_explicit_config(self, tmp_path: Path) -> None:
         cfg = _write_minimal_config(tmp_path)
-        app = load_app(str(cfg))
+        app, config = load_app(str(cfg))
         assert app is not None
+        assert config is not None
         paths = {r.path for r in app.routes if hasattr(r, "path")}
         assert "/healthz" in paths
         assert "/api/v1/overrides" in paths
