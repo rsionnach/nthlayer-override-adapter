@@ -28,9 +28,7 @@ jobs:
       - name: build
         run: uv build
       - name: twine check
-        run: |
-          uv pip install --system twine
-          twine check dist/*
+        run: uvx twine check dist/*
       - name: smoke gate (Docker)
         run: |
           docker run --rm \
