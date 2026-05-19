@@ -12,7 +12,7 @@ src/nthlayer_override_adapter/
   response.py     # BatchResult dataclass + accepted_single / build_batch_response helpers; response shape per design doc § 3 (decision_ids in accepted, indexed rejected/duplicates)
   emission.py     # emit_override(event, privacy) — opens unparented gen_ai.override span via empty otel_context.Context(); applies hash_reviewer (default) / drops reason when exclude_reason; fail-open on exporter errors (logged + counted, never raised)
   app.py          # build_app(config) — Starlette factory; wires /healthz + /metrics + canonical + dynamic webhook routes
-  cli.py          # nthlayer-override-adapter serve [--config <path>] [--host <h>] [--port <p>]; argparse-driven; exits SystemExit(2) on config-not-found or invalid YAML
+  cli.py          # nthlayer-override-adapter serve [--config <path>] [--host <h>] [--port <p>]; argparse-driven; exits SystemExit(2) on config-not-found or invalid YAML; --config falls back to $NTHLAYER_OVERRIDE_ADAPTER_CONFIG env var; calls _init_otel(cfg.otel_endpoint) after build_app() to initialise the OTel SDK (Wave A behaviour)
   routes/
     canonical.py  # POST /api/v1/overrides + POST /api/v1/overrides/batch (last-in-array-wins on dup decision_id; two-pass _process_batch computes winners then emits exactly one span per unique accepted decision_id)
     webhook.py    # Dynamic POST {webhook_path} per WebhookAdapter; handler runs map_webhook_to_override (from nthlayer-common) + emits via shared emit_override; mapper ValueError → 400
@@ -26,6 +26,7 @@ src/nthlayer_override_adapter/
 - **Fail-open on OTel export errors**: HTTP request still returns 201 even if export is degraded; the OTel SDK retries / buffers. `override_collector_errors_total` increments.
 - **No auth in v1.5**: matches `nthlayer-core` posture. File a follow-up bead if a real deployment needs it.
 - **Per-endpoint metric labels**: `_validation_response` takes an `endpoint` keyword (`canonical` / `batch` / `webhook`) so rejection counters are correctly attributed.
+- **OTel SDK no-op fallback**: `_init_otel()` resolves the OTLP endpoint from `otel.endpoint` in config, then from `$OTEL_EXPORTER_OTLP_ENDPOINT`. When neither is set the SDK is not initialised — `emission.py` gets the no-op tracer and spans are silently dropped. The adapter logs `otel_sdk_not_initialised` at WARNING so operators know it is running blind.
 
 ## Commands
 
@@ -35,6 +36,8 @@ uv run pytest -q                   # full suite + smoke
 uv run ruff check src/ tests/
 uv run nthlayer-override-adapter serve --config <path>
 ```
+
+CI runs `ruff` then `pytest` against Python 3.11, 3.12, and 3.13 (matrix in `.github/workflows/test.yml`). Local dev uses 3.11+.
 
 ## Dependencies
 
