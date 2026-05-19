@@ -30,11 +30,12 @@ class WebhookAdapter:
 
 @dataclass
 class AdapterConfig:
-    """Top-level adapter config — adapters, privacy posture, OTel target."""
+    """Top-level adapter config — adapters, privacy posture, OTel target, batch limits."""
 
     adapters: list[WebhookAdapter]
     privacy: OverridePrivacyConfig
     otel_endpoint: str | None = None
+    max_batch_size: int = 1000
 
 
 def load_config(path: str | Path) -> AdapterConfig:
@@ -69,8 +70,27 @@ def load_config(path: str | Path) -> AdapterConfig:
             f"'otel' must be a mapping, got {type(otel_raw).__name__}"
         )
     otel_endpoint = otel_raw.get("endpoint")
+    batch_raw = raw.get("batch") or {}
+    if not isinstance(batch_raw, dict):
+        raise ConfigError(
+            f"'batch' must be a mapping, got {type(batch_raw).__name__}"
+        )
+    max_batch_size = batch_raw.get("max_size", 1000)
+    if not isinstance(max_batch_size, int):
+        raise ConfigError(
+            f"batch.max_size must be an integer, got {type(max_batch_size).__name__}"
+        )
+    if max_batch_size <= 0:
+        raise ConfigError(
+            f"batch.max_size must be positive, got {max_batch_size}"
+        )
 
-    return AdapterConfig(adapters=adapters, privacy=privacy, otel_endpoint=otel_endpoint)
+    return AdapterConfig(
+        adapters=adapters,
+        privacy=privacy,
+        otel_endpoint=otel_endpoint,
+        max_batch_size=max_batch_size,
+    )
 
 
 def _parse_adapters(raw_adapters: list[Any]) -> list[WebhookAdapter]:

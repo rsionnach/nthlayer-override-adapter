@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import atexit
 import os
 import sys
 
@@ -90,11 +91,21 @@ def _init_otel(otel_endpoint: str | None) -> None:
     exporter = OTLPSpanExporter(endpoint=endpoint, insecure=True)
     provider.add_span_processor(BatchSpanProcessor(exporter))
     trace.set_tracer_provider(provider)
+
+    def _shutdown_otel() -> None:
+        try:
+            provider.force_flush(timeout_millis=5000)
+            provider.shutdown()
+        except Exception as exc:  # noqa: BLE001 — shutdown should never crash
+            logger.warning("otel_sdk_shutdown_failed", error=str(exc))
+
+    atexit.register(_shutdown_otel)
     logger.info(
         "otel_sdk_initialised",
         endpoint=endpoint,
         service_name=resource.attributes.get("service.name"),
     )
+    logger.info("otel_sdk_shutdown_hook_registered")
 
 
 def main() -> int:

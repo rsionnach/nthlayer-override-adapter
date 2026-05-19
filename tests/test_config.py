@@ -128,3 +128,41 @@ class TestTypeGuards:
         target.write_text("adapters: []\notel: not-a-mapping\n")
         with pytest.raises(ConfigError, match=r"'otel' must be a mapping"):
             load_config(target)
+
+    def test_batch_non_dict_raises(self, tmp_path: Path) -> None:
+        target = tmp_path / "bad.yaml"
+        target.write_text("adapters: []\nbatch: not-a-mapping\n")
+        with pytest.raises(ConfigError, match=r"'batch' must be a mapping"):
+            load_config(target)
+
+
+class TestBatchMaxSize:
+    def test_default_when_absent(self, tmp_path: Path) -> None:
+        target = tmp_path / "cfg.yaml"
+        target.write_text("adapters: []\n")
+        cfg = load_config(target)
+        assert cfg.max_batch_size == 1000
+
+    def test_explicit_value_round_trips(self, tmp_path: Path) -> None:
+        target = tmp_path / "cfg.yaml"
+        target.write_text("adapters: []\nbatch:\n  max_size: 500\n")
+        cfg = load_config(target)
+        assert cfg.max_batch_size == 500
+
+    def test_zero_raises(self, tmp_path: Path) -> None:
+        target = tmp_path / "cfg.yaml"
+        target.write_text("adapters: []\nbatch:\n  max_size: 0\n")
+        with pytest.raises(ConfigError, match="must be positive"):
+            load_config(target)
+
+    def test_negative_raises(self, tmp_path: Path) -> None:
+        target = tmp_path / "cfg.yaml"
+        target.write_text("adapters: []\nbatch:\n  max_size: -1\n")
+        with pytest.raises(ConfigError, match="must be positive"):
+            load_config(target)
+
+    def test_non_int_raises(self, tmp_path: Path) -> None:
+        target = tmp_path / "cfg.yaml"
+        target.write_text("adapters: []\nbatch:\n  max_size: lots\n")
+        with pytest.raises(ConfigError, match="must be an integer"):
+            load_config(target)

@@ -1,8 +1,9 @@
 from pathlib import Path
+from unittest import mock
 
 import pytest
 
-from nthlayer_override_adapter.cli import build_parser, load_app
+from nthlayer_override_adapter.cli import _init_otel, build_parser, load_app
 
 
 def _write_minimal_config(tmp_path: Path) -> Path:
@@ -43,3 +44,26 @@ class TestLoadApp:
     def test_load_app_missing_config_exits(self, tmp_path: Path) -> None:
         with pytest.raises(SystemExit):
             load_app(str(tmp_path / "absent.yaml"))
+
+
+class TestOtelShutdown:
+    def test_atexit_hook_registered_when_endpoint_set(self) -> None:
+        with mock.patch("nthlayer_override_adapter.cli.atexit.register") as mock_register:
+            with mock.patch("nthlayer_override_adapter.cli.OTLPSpanExporter"):
+                with mock.patch("nthlayer_override_adapter.cli.trace.set_tracer_provider"):
+                    _init_otel("http://localhost:4317")
+
+            # Verify atexit.register was called with our shutdown handler.
+            # TracerProvider may also register internal handlers, so check for ours.
+            assert mock_register.called
+            assert mock_register.call_count >= 1
+            # Our shutdown function should be the last registered handler
+            # or at least one of them.
+            calls = mock_register.call_args_list
+            registered_callables = [call[0][0] for call in calls]
+            # Find our _shutdown_otel function (it has "_shutdown_otel" in qualname).
+            shutdown_fns = [
+                fn for fn in registered_callables
+                if callable(fn) and getattr(fn, "__qualname__", "").endswith("_shutdown_otel")
+            ]
+            assert len(shutdown_fns) >= 1, "Expected _shutdown_otel to be registered"

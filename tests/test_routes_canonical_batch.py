@@ -9,7 +9,7 @@ from nthlayer_override_adapter.routes.canonical import register_canonical_routes
 @pytest.fixture
 def client(span_exporter) -> TestClient:
     app = Starlette()
-    register_canonical_routes(app, privacy=OverridePrivacyConfig())
+    register_canonical_routes(app, privacy=OverridePrivacyConfig(), max_batch_size=1000)
     return TestClient(app)
 
 
@@ -120,3 +120,51 @@ class TestBatchMalformed:
     def test_overrides_key_missing_400(self, client) -> None:
         resp = client.post("/api/v1/overrides/batch", json={"foo": []})
         assert resp.status_code == 400
+
+
+class TestBatchSizeCap:
+    def test_413_above_cap(self, span_exporter) -> None:
+        app = Starlette()
+        register_canonical_routes(app, privacy=OverridePrivacyConfig(), max_batch_size=3)
+        client = TestClient(app)
+
+        # Post 4 valid entries, cap is 3.
+        body = {"overrides": [_entry(f"dec-{i:03d}") for i in range(4)]}
+        resp = client.post("/api/v1/overrides/batch", json=body)
+
+        assert resp.status_code == 413
+        data = resp.json()
+        assert "batch exceeds" in data["detail"]
+        assert "4 entries" in data["detail"]
+        assert "limit 3" in data["detail"]
+        # No spans should be emitted.
+        assert len(span_exporter.get_finished_spans()) == 0
+
+    def test_status_rejected_when_all_entries_invalid(self, span_exporter) -> None:
+        app = Starlette()
+        register_canonical_routes(app, privacy=OverridePrivacyConfig(), max_batch_size=1000)
+        client = TestClient(app)
+
+        # Post 2 entries, each missing 'reviewer' (invalid).
+        body = {
+            "overrides": [
+                {
+                    "decision_id": "dec-001",
+                    "service": "svc",
+                    "corrected_action": "act",
+                    "timestamp": "2026-05-15T12:00:00Z",
+                },
+                {
+                    "decision_id": "dec-002",
+                    "service": "svc",
+                    "corrected_action": "act",
+                    "timestamp": "2026-05-15T12:00:00Z",
+                },
+            ]
+        }
+        resp = client.post("/api/v1/overrides/batch", json=body)
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["accepted"] == []
+        assert len(data["rejected"]) == 2

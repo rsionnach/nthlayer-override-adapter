@@ -9,7 +9,7 @@ from nthlayer_override_adapter.routes.canonical import register_canonical_routes
 @pytest.fixture
 def client(span_exporter) -> TestClient:
     app = Starlette()
-    register_canonical_routes(app, privacy=OverridePrivacyConfig())
+    register_canonical_routes(app, privacy=OverridePrivacyConfig(), max_batch_size=1000)
     return TestClient(app)
 
 
@@ -68,3 +68,17 @@ class TestSingleOverride:
             headers={"content-type": "application/json"},
         )
         assert resp.status_code == 400
+
+    def test_non_string_timestamp_400(self, client) -> None:
+        resp = client.post(
+            "/api/v1/overrides", json=_valid_body(timestamp=12345),
+        )
+        assert resp.status_code == 400
+        assert "timestamp" in resp.json()["detail"]
+
+    def test_list_timestamp_400(self, client) -> None:
+        resp = client.post(
+            "/api/v1/overrides", json=_valid_body(timestamp=["2026-01-01"]),
+        )
+        assert resp.status_code == 400
+        assert "timestamp" in resp.json()["detail"]

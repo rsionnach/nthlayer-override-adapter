@@ -17,7 +17,9 @@ def build_app(config: AdapterConfig) -> Starlette:
     app = Starlette()
     app.routes.append(Route("/healthz", _healthz, methods=["GET"]))
     app.routes.append(Route("/metrics", _metrics, methods=["GET"]))
-    register_canonical_routes(app, privacy=config.privacy)
+    register_canonical_routes(
+        app, privacy=config.privacy, max_batch_size=config.max_batch_size,
+    )
     register_webhook_routes(
         app, adapters=config.adapters, privacy=config.privacy,
     )

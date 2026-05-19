@@ -31,7 +31,7 @@ class _Winner:
 
 
 def register_canonical_routes(
-    app: Starlette, *, privacy: OverridePrivacyConfig,
+    app: Starlette, *, privacy: OverridePrivacyConfig, max_batch_size: int = 1000,
 ) -> None:
     """Mount /api/v1/overrides and /api/v1/overrides/batch on the app."""
 
@@ -72,8 +72,20 @@ def register_canonical_routes(
                 endpoint="batch", reason="invalid_body", detail="'overrides' must be an array",
             )
 
+        if len(entries) > max_batch_size:
+            validation_errors_total.labels(reason="batch_too_large").inc()
+            detail = (
+                f"batch exceeds max_batch_size "
+                f"({len(entries)} entries, limit {max_batch_size})"
+            )
+            return JSONResponse(
+                {"detail": detail},
+                status_code=413,
+            )
+
         result = _process_batch(entries, privacy=privacy)
-        requests_total.labels(endpoint="batch", status="accepted").inc()
+        status = "accepted" if result.accepted else "rejected"
+        requests_total.labels(endpoint="batch", status=status).inc()
         return JSONResponse(build_batch_response(result), status_code=200)
 
     app.routes.append(Route("/api/v1/overrides", post_single, methods=["POST"]))
@@ -127,8 +139,19 @@ def _event_from_payload(payload: object) -> OverrideEvent:
     if not isinstance(payload, dict):
         raise ValueError(f"override body must be a JSON object, got {type(payload).__name__}")
     kwargs = dict(payload)
-    if "timestamp" in kwargs and isinstance(kwargs["timestamp"], str):
-        kwargs["timestamp"] = _parse_iso_timestamp(kwargs["timestamp"])
+    if "timestamp" in kwargs:
+        ts = kwargs["timestamp"]
+        if isinstance(ts, str):
+            kwargs["timestamp"] = _parse_iso_timestamp(ts)
+        elif isinstance(ts, datetime):
+            if ts.tzinfo is None:
+                raise ValueError(
+                    f"timestamp must be tz-aware; got naive datetime {ts!r}"
+                )
+        else:
+            raise ValueError(
+                f"timestamp must be an ISO 8601 string or datetime; got {type(ts).__name__}"
+            )
     return OverrideEvent(**kwargs)
 
 
