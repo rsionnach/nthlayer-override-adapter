@@ -14,10 +14,10 @@ jobs:
       matrix:
         python-version: ["3.11", "3.12", "3.13"]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           path: nthlayer-override-adapter
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: rsionnach/nthlayer-common
           path: nthlayer-common
