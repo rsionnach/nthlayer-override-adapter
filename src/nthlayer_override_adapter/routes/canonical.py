@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
@@ -21,6 +22,12 @@ from nthlayer_override_adapter.response import (
     accepted_single,
     build_batch_response,
 )
+
+
+@dataclass(frozen=True)
+class _Winner:
+    index: int
+    event: OverrideEvent
 
 
 def register_canonical_routes(
@@ -87,7 +94,7 @@ def _process_batch(
     by emitting N spans for N occurrences of the same id.
     """
     result = BatchResult()
-    winners: dict[str, tuple[int, OverrideEvent]] = {}
+    winners: dict[str, _Winner] = {}
     superseded: dict[str, list[int]] = {}
 
     for idx, entry in enumerate(entries):
@@ -99,17 +106,17 @@ def _process_batch(
 
         prev = winners.get(event.decision_id)
         if prev is not None:
-            superseded.setdefault(event.decision_id, []).append(prev[0])
-        winners[event.decision_id] = (idx, event)
+            superseded.setdefault(event.decision_id, []).append(prev.index)
+        winners[event.decision_id] = _Winner(index=idx, event=event)
 
-    for decision_id, (winning_idx, event) in winners.items():
-        emit_override(event, privacy)
+    for decision_id, winner in winners.items():
+        emit_override(winner.event, privacy)
         result.accepted.append(decision_id)
         if decision_id in superseded:
             result.duplicates.append(
                 {
                     "decision_id": decision_id,
-                    "applied_at_index": winning_idx,
+                    "applied_at_index": winner.index,
                     "discarded_indices": sorted(superseded[decision_id]),
                 }
             )

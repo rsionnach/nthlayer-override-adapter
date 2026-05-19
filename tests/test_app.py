@@ -7,7 +7,7 @@ from nthlayer_override_adapter.config import AdapterConfig, WebhookAdapter
 
 
 @pytest.fixture
-def cfg() -> AdapterConfig:
+def adapter_config() -> AdapterConfig:
     return AdapterConfig(
         adapters=[
             WebhookAdapter(
@@ -26,8 +26,8 @@ def cfg() -> AdapterConfig:
 
 
 @pytest.fixture
-def client(span_exporter, cfg) -> TestClient:
-    return TestClient(build_app(cfg))
+def client(span_exporter, adapter_config) -> TestClient:
+    return TestClient(build_app(adapter_config))
 
 
 class TestHealthAndMetrics:

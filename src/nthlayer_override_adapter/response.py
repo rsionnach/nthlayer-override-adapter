@@ -17,6 +17,7 @@ class BatchResult:
     accepted: list[str] = field(default_factory=list)
     rejected: list[dict[str, Any]] = field(default_factory=list)
     duplicates: list[dict[str, Any]] = field(default_factory=list)
+    # Reserved for jmy.18 follow-up; currently always empty.
     errors: list[dict[str, Any]] = field(default_factory=list)
 
 

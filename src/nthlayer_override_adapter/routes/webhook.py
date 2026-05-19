@@ -49,12 +49,15 @@ def _make_handler(adapter: WebhookAdapter, *, privacy: OverridePrivacyConfig):
         try:
             payload = await request.json()
         except json.JSONDecodeError as exc:
-            return _validation_response("malformed_json", str(exc))
+            return _validation_response(
+                endpoint="webhook", reason="malformed_json", detail=str(exc)
+            )
 
         if not isinstance(payload, dict):
             return _validation_response(
-                "invalid_body",
-                f"webhook body must be a JSON object, got {type(payload).__name__}",
+                endpoint="webhook",
+                reason="invalid_body",
+                detail=f"webhook body must be a JSON object, got {type(payload).__name__}",
             )
 
         try:
@@ -64,7 +67,7 @@ def _make_handler(adapter: WebhookAdapter, *, privacy: OverridePrivacyConfig):
                 defaults=adapter.defaults,
             )
         except ValueError as exc:
-            return _validation_response("mapper_error", str(exc))
+            return _validation_response(endpoint="webhook", reason="mapper_error", detail=str(exc))
 
         emit_override(event, privacy)
         requests_total.labels(endpoint="webhook", status="accepted").inc()
@@ -73,7 +76,7 @@ def _make_handler(adapter: WebhookAdapter, *, privacy: OverridePrivacyConfig):
     return handle
 
 
-def _validation_response(reason: str, detail: str) -> JSONResponse:
+def _validation_response(*, endpoint: str, reason: str, detail: str) -> JSONResponse:
     validation_errors_total.labels(reason=reason).inc()
-    requests_total.labels(endpoint="webhook", status="rejected").inc()
+    requests_total.labels(endpoint=endpoint, status="rejected").inc()
     return JSONResponse({"detail": detail}, status_code=400)

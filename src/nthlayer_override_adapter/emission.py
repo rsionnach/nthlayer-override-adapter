@@ -46,9 +46,9 @@ def emit_override(event: OverrideEvent, privacy: OverridePrivacyConfig) -> None:
     started = time.perf_counter()
     masked = _apply_privacy(event, privacy)
     tracer = trace.get_tracer(_TRACER_NAME)
-    empty = otel_context.Context()
+    unparented_context = otel_context.Context()
     try:
-        with tracer.start_as_current_span(_SPAN_NAME, context=empty) as span:
+        with tracer.start_as_current_span(_SPAN_NAME, context=unparented_context) as span:
             for key, value in masked.to_otel_attributes().items():
                 span.set_attribute(key, value)
         emission_total.labels(result="emitted").inc()
