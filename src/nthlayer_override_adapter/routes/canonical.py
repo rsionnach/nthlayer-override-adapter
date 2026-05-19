@@ -74,6 +74,7 @@ def register_canonical_routes(
 
         if len(entries) > max_batch_size:
             validation_errors_total.labels(reason="batch_too_large").inc()
+            requests_total.labels(endpoint="batch", status="rejected").inc()
             detail = (
                 f"batch exceeds max_batch_size "
                 f"({len(entries)} entries, limit {max_batch_size})"

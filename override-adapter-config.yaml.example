@@ -1,0 +1,39 @@
+# Example configuration for nthlayer-override-adapter.
+# Copy to override-adapter-config.yaml and adapt for your deployment.
+#
+# Each entry under `adapters:` registers a POST endpoint at `webhook_path`
+# that runs `field_mapping` over the inbound payload to produce a canonical
+# gen_ai.override event. `defaults` supplies values for any field the
+# mapping cannot resolve from the payload (e.g. source_system, service).
+
+adapters:
+  - source: jira
+    webhook_path: /webhook/jira
+    field_mapping:
+      decision_id: "issue.customfield_10042"
+      corrected_action: "issue.resolution.name"
+      reviewer: "issue.assignee.emailAddress"
+      timestamp: "issue.updated"
+      reason: "issue.resolution.description"
+    defaults:
+      source_system: jira
+      service: fraud-detect
+
+privacy:
+  # Reviewer hashed by default (SHA-256). Opt in to plaintext only if
+  # downstream consumers genuinely need the raw identifier.
+  plaintext_reviewer: false
+  # `reason` text is stored by default. Set true to drop it from
+  # emitted spans entirely.
+  exclude_reason: false
+
+# Cap on the size of a /api/v1/overrides/batch payload. Requests above
+# this size return HTTP 413. Default is 1000 when omitted.
+batch:
+  max_size: 1000
+
+otel:
+  exporter: otlp
+  # OTLP gRPC endpoint for the collector. Falls back to the standard
+  # $OTEL_EXPORTER_OTLP_ENDPOINT env var when this key is absent.
+  endpoint: "http://localhost:4317"

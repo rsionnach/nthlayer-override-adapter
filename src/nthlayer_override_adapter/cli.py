@@ -111,6 +111,7 @@ def _init_otel(otel_endpoint: str | None) -> None:
 def main() -> int:
     args = build_parser().parse_args()
     if args.command == "serve":
+        config_path = args.config or os.environ.get("NTHLAYER_OVERRIDE_ADAPTER_CONFIG")
         app, cfg = load_app(args.config)
         # Initialise OTel SDK with the resolved endpoint from config.
         _init_otel(cfg.otel_endpoint)
@@ -118,7 +119,7 @@ def main() -> int:
             "override_adapter_serving",
             host=args.host,
             port=args.port,
-            config=args.config,
+            config_path=config_path,
         )
         uvicorn.run(app, host=args.host, port=args.port, log_config=None)
     return 0
