@@ -46,6 +46,8 @@ cp override-adapter-config.yaml.example override-adapter-config.yaml
 
 CI runs `ruff` then `pytest` against Python 3.11, 3.12, and 3.13 (matrix in `.github/workflows/test.yml`). Local dev uses 3.11+.
 
+Release (`release.yml`): push to `main` runs `release-please-action@v4` (config: `release-please-config.json` + `.release-please-manifest.json`) to maintain the release PR and cut `v*` tags from conventional commits; tag push or `workflow_dispatch` runs the publish job: `uv build` → `uvx twine check dist/*` → Docker smoke gate (python:3.11-slim installs built `.whl` + runs `tests/smoke/`) → trusted PyPI publish via `pypa/gh-action-pypi-publish`.
+
 ## Dependencies
 
 - `nthlayer-common>=1.5.0,<2.0.0` — overrides foundation (`OverrideEvent`, `OverridePrivacyConfig`, `map_webhook_to_override`, `hash_reviewer`), `metrics_content_type` / `render_metrics`
