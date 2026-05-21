@@ -11,6 +11,10 @@ adapters:
       source_system: jira
       service: fraud-detect
 
+core:
+  url: http://core:8000
+  timeout_seconds: 5.0
+
 privacy:
   plaintext_reviewer: false
   exclude_reason: false

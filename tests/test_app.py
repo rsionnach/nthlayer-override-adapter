@@ -3,7 +3,7 @@ from nthlayer_common.overrides import OverridePrivacyConfig
 from starlette.testclient import TestClient
 
 from nthlayer_override_adapter.app import build_app
-from nthlayer_override_adapter.config import AdapterConfig, WebhookAdapter
+from nthlayer_override_adapter.config import AdapterConfig, CoreConfig, WebhookAdapter
 
 
 @pytest.fixture
@@ -22,6 +22,7 @@ def adapter_config() -> AdapterConfig:
             ),
         ],
         privacy=OverridePrivacyConfig(),
+        core=CoreConfig(url="http://core:8000"),
     )
 
 

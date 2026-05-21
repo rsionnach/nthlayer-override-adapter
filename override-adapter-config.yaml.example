@@ -19,6 +19,10 @@ adapters:
       source_system: jira
       service: fraud-detect
 
+core:
+  url: http://core:8000
+  timeout_seconds: 5.0
+
 privacy:
   # Reviewer hashed by default (SHA-256). Opt in to plaintext only if
   # downstream consumers genuinely need the raw identifier.

@@ -8,7 +8,7 @@ from nthlayer_override_adapter.cli import _init_otel, build_parser, load_app
 
 def _write_minimal_config(tmp_path: Path) -> Path:
     p = tmp_path / "cfg.yaml"
-    p.write_text("adapters: []\n")
+    p.write_text("adapters: []\ncore:\n  url: http://core:8000\n")
     return p
 
 

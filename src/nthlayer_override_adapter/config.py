@@ -28,12 +28,21 @@ class WebhookAdapter:
     defaults: dict[str, Any] = field(default_factory=dict)
 
 
+@dataclass(frozen=True)
+class CoreConfig:
+    """Core API connection settings (opensrm-jmy.18)."""
+
+    url: str
+    timeout_seconds: float = 5.0
+
+
 @dataclass
 class AdapterConfig:
     """Top-level adapter config — adapters, privacy posture, OTel target, batch limits."""
 
     adapters: list[WebhookAdapter]
     privacy: OverridePrivacyConfig
+    core: CoreConfig
     otel_endpoint: str | None = None
     max_batch_size: int = 1000
 
@@ -56,6 +65,19 @@ def load_config(path: str | Path) -> AdapterConfig:
 
     if not isinstance(raw, dict):
         raise ConfigError(f"top-level config must be a mapping, got {type(raw).__name__}")
+
+    core_raw = raw.get("core")
+    if core_raw is None:
+        raise ConfigError("core: block is required")
+    if not isinstance(core_raw, dict):
+        raise ConfigError("core: must be a mapping")
+    core_url = core_raw.get("url")
+    if not isinstance(core_url, str) or not core_url:
+        raise ConfigError("core.url is required and must be a non-empty string")
+    core_timeout_raw = core_raw.get("timeout_seconds", 5.0)
+    if not isinstance(core_timeout_raw, (int, float)) or core_timeout_raw <= 0:
+        raise ConfigError("core.timeout_seconds must be a positive number")
+    core_cfg = CoreConfig(url=core_url, timeout_seconds=float(core_timeout_raw))
 
     adapters_raw = raw.get("adapters") or []
     if not isinstance(adapters_raw, list):
@@ -88,6 +110,7 @@ def load_config(path: str | Path) -> AdapterConfig:
     return AdapterConfig(
         adapters=adapters,
         privacy=privacy,
+        core=core_cfg,
         otel_endpoint=otel_endpoint,
         max_batch_size=max_batch_size,
     )
