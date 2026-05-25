@@ -36,3 +36,9 @@ emit_duration_seconds = Histogram(
     "Time from HTTP receipt to OTel span emitted, seconds.",
     buckets=(0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0),
 )
+
+binding_total = Counter(
+    "nthlayer_override_binding_total",
+    "Override binding attempts to nthlayer-core, by result and reason (opensrm-jmy.18).",
+    ["result", "reason"],
+)

@@ -23,3 +23,17 @@ class TestCounters:
 
     def test_emit_duration_is_histogram(self) -> None:
         emit_duration_seconds.observe(0.001)
+
+
+def test_binding_total_counter_exists_with_bounded_labels():
+    """opensrm-jmy.18: nthlayer_override_binding_total{result, reason}."""
+    from nthlayer_override_adapter.metrics import binding_total
+
+    binding_total.labels(result="success", reason="ok").inc()
+    for reason in ("core_unreachable", "verdict_not_found",
+                   "validation_error", "core_timeout", "other"):
+        binding_total.labels(result="failed", reason=reason).inc()
+
+    samples = list(binding_total.collect())
+    metric_names = {s.name for s in samples}
+    assert any("nthlayer_override_binding" in n for n in metric_names)
