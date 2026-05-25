@@ -12,7 +12,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 
-from nthlayer_override_adapter.emission import emit_override
+from nthlayer_override_adapter.emission import bind_to_core, emit_override
 from nthlayer_override_adapter.metrics import (
     requests_total,
     validation_errors_total,
@@ -52,7 +52,23 @@ def register_canonical_routes(
 
         emit_override(event, privacy)
         requests_total.labels(endpoint="canonical", status="accepted").inc()
-        return JSONResponse(accepted_single(event.decision_id), status_code=201)
+
+        # C4 (opensrm-jmy.18): bind to core after OTel emission.
+        # core_client and adapter_config are set on app.state by the app
+        # factory (C7) or by test fixtures. When core_client is absent
+        # (e.g. legacy fixture path) skip binding so existing tests still pass.
+        core_client = getattr(request.app.state, "core_client", None)
+        if core_client is not None:
+            adapter_cfg = request.app.state.adapter_config
+            binding = await bind_to_core(
+                core_client,
+                event,
+                timeout_seconds=adapter_cfg.core.timeout_seconds,
+            )
+        else:
+            binding = None
+
+        return JSONResponse(accepted_single(event.decision_id, bindings=binding), status_code=201)
 
     async def post_batch(request: Request) -> JSONResponse:
         try:

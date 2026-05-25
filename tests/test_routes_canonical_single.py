@@ -32,7 +32,11 @@ class TestSingleOverride:
     def test_happy_path_201(self, client, span_exporter) -> None:
         resp = client.post("/api/v1/overrides", json=_valid_body())
         assert resp.status_code == 201
-        assert resp.json() == {"decision_id": "vrd-001", "emitted_to_otel": True}
+        data = resp.json()
+        # No core_client on app.state → bindings key absent; otel emission confirmed by span.
+        assert data["accepted"] == ["vrd-001"]
+        assert data["rejected"] == []
+        assert "bindings" not in data
         assert len(span_exporter.get_finished_spans()) == 1
 
     def test_cardinality_one_response_one_span(self, client, span_exporter) -> None:
@@ -82,3 +86,41 @@ class TestSingleOverride:
         )
         assert resp.status_code == 400
         assert "timestamp" in resp.json()["detail"]
+
+
+class TestCanonicalSingleBindings:
+    """opensrm-jmy.18: single-override response carries bindings field."""
+
+    def test_single_success_response_includes_bindings(self, app_with_fake_core) -> None:
+        """app_with_fake_core fixture wires a fake CoreAPIClient that returns 200."""
+        app = app_with_fake_core(fake_status=200)
+        client = TestClient(app)
+        body = {
+            "decision_id": "dec-1",
+            "service": "fraud-detect",
+            "corrected_action": "approve",
+            "reviewer": "reviewer-hash",
+        }
+        resp = client.post("/api/v1/overrides", json=body)
+        assert resp.status_code == 201
+        data = resp.json()
+        assert data["accepted"] == ["dec-1"]
+        assert data["bindings"]["dec-1"]["otel"] == "ok"
+        assert data["bindings"]["dec-1"]["core"] == "ok"
+        assert "reason" not in data["bindings"]["dec-1"]  # core==ok → no reason
+
+    def test_single_core_failure_surfaces_in_response(self, app_with_fake_core) -> None:
+        app = app_with_fake_core(fake_status=404)
+        client = TestClient(app)
+        body = {
+            "decision_id": "dec-missing",
+            "service": "fraud-detect",
+            "corrected_action": "approve",
+            "reviewer": "reviewer-hash",
+        }
+        resp = client.post("/api/v1/overrides", json=body)
+        assert resp.status_code == 201  # unchanged HTTP status — body is truth
+        data = resp.json()
+        assert data["accepted"] == ["dec-missing"]
+        assert data["bindings"]["dec-missing"]["core"] == "failed"
+        assert data["bindings"]["dec-missing"]["reason"] == "verdict_not_found"

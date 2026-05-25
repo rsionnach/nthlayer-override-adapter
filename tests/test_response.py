@@ -6,9 +6,30 @@ from nthlayer_override_adapter.response import (
 
 
 class TestSingleResponse:
-    def test_accepted_single_shape(self) -> None:
+    def test_accepted_single_shape_no_bindings(self) -> None:
         body = accepted_single("dec_001")
-        assert body == {"decision_id": "dec_001", "emitted_to_otel": True}
+        assert body == {
+            "accepted": ["dec_001"],
+            "rejected": [],
+            "duplicates": [],
+            "errors": [],
+        }
+        assert "bindings" not in body
+
+    def test_accepted_single_shape_with_bindings_ok(self) -> None:
+        from nthlayer_override_adapter.response import BindingResult
+        br = BindingResult(otel="ok", core="ok", reason=None)
+        body = accepted_single("dec_001", bindings=br)
+        assert body["accepted"] == ["dec_001"]
+        assert body["bindings"] == {"dec_001": {"otel": "ok", "core": "ok"}}
+        assert "reason" not in body["bindings"]["dec_001"]
+
+    def test_accepted_single_shape_with_bindings_failed(self) -> None:
+        from nthlayer_override_adapter.response import BindingResult
+        br = BindingResult(otel="ok", core="failed", reason="verdict_not_found")
+        body = accepted_single("dec_001", bindings=br)
+        assert body["bindings"]["dec_001"]["core"] == "failed"
+        assert body["bindings"]["dec_001"]["reason"] == "verdict_not_found"
 
 
 class TestBatchResponse:

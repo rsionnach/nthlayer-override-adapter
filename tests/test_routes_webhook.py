@@ -48,8 +48,8 @@ class TestJiraWebhook:
         resp = client.post("/webhook/jira", json=JIRA_PAYLOAD)
         assert resp.status_code == 201
         body = resp.json()
-        assert body["decision_id"] == "vrd-001"
-        assert body["emitted_to_otel"] is True
+        assert body["accepted"] == ["vrd-001"]
+        assert body["rejected"] == []
         spans = span_exporter.get_finished_spans()
         assert len(spans) == 1
         attrs = spans[0].attributes

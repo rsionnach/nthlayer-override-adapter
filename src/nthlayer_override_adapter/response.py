@@ -42,9 +42,26 @@ class BatchResult:
     errors: list[dict[str, Any]] = field(default_factory=list)
 
 
-def accepted_single(decision_id: str) -> dict[str, Any]:
-    """Body for a successful single-override POST."""
-    return {"decision_id": decision_id, "emitted_to_otel": True}
+def accepted_single(
+    decision_id: str,
+    bindings: BindingResult | None = None,
+) -> dict[str, Any]:
+    """Body for a successful single-override POST.
+
+    Backward-compatible: bindings defaults to None and is omitted from the
+    response when not provided (e.g. in tests that don't wire a core client).
+    When provided, the bindings key is a mapping from decision_id to the
+    serialised BindingResult dict.
+    """
+    out: dict[str, Any] = {
+        "accepted": [decision_id],
+        "rejected": [],
+        "duplicates": [],
+        "errors": [],
+    }
+    if bindings is not None:
+        out["bindings"] = {decision_id: bindings.to_dict()}
+    return out
 
 
 def build_batch_response(result: BatchResult) -> dict[str, Any]:
