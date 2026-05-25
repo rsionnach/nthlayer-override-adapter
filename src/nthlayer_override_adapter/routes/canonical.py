@@ -13,7 +13,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 
-from nthlayer_override_adapter.emission import bind_to_core, emit_override
+from nthlayer_override_adapter.emission import apply_privacy, bind_to_core, emit_override
 from nthlayer_override_adapter.metrics import (
     binding_total,
     requests_total,
@@ -55,7 +55,13 @@ def register_canonical_routes(
                 endpoint="canonical", reason="invalid_body", detail=str(exc)
             )
 
-        emit_override(event, privacy)
+        # Spec § 7: apply privacy ONCE at the sidecar boundary.
+        # The masked event is passed to both emit_override (OTel) and
+        # bind_to_core (HTTP POST) so both sides of the boundary receive
+        # identical redacted data. Core trusts pre_redacted=True and stores
+        # the reviewer string as-is, so plaintext must never reach core.
+        masked = apply_privacy(event, privacy)
+        emit_override(masked)
         requests_total.labels(endpoint="canonical", status="accepted").inc()
 
         # C4 (opensrm-jmy.18): bind to core after OTel emission.
@@ -67,7 +73,7 @@ def register_canonical_routes(
             adapter_cfg = request.app.state.adapter_config
             binding = await bind_to_core(
                 core_client,
-                event,
+                masked,
                 timeout_seconds=adapter_cfg.core.timeout_seconds,
             )
         else:
@@ -131,11 +137,14 @@ def register_canonical_routes(
 
         bindings: dict[str, BindingResult] = {}
         for decision_id, winner in winners.items():
-            emit_override(winner.event, privacy)
+            # Spec § 7: apply privacy once per winner; pass masked event to
+            # both emit_override (OTel) and bind_to_core (HTTP POST to core).
+            masked = apply_privacy(winner.event, privacy)
+            emit_override(masked)
             result.accepted.append(decision_id)
             if core_client is not None:
                 bindings[decision_id] = await bind_to_core(
-                    core_client, winner.event, timeout_seconds=timeout_seconds,
+                    core_client, masked, timeout_seconds=timeout_seconds,
                 )
 
         status = "accepted" if result.accepted else "rejected"

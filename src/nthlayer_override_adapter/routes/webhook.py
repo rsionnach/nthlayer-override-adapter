@@ -20,7 +20,7 @@ from starlette.responses import JSONResponse
 from starlette.routing import Route
 
 from nthlayer_override_adapter.config import WebhookAdapter
-from nthlayer_override_adapter.emission import bind_to_core, emit_override
+from nthlayer_override_adapter.emission import apply_privacy, bind_to_core, emit_override
 from nthlayer_override_adapter.metrics import (
     binding_total,
     requests_total,
@@ -73,7 +73,11 @@ def _make_handler(adapter: WebhookAdapter, *, privacy: OverridePrivacyConfig):
         except ValueError as exc:
             return _validation_response(endpoint="webhook", reason="mapper_error", detail=str(exc))
 
-        emit_override(event, privacy)
+        # Spec § 7: apply privacy ONCE at the sidecar boundary.
+        # The masked event is passed to both emit_override (OTel) and
+        # bind_to_core (HTTP POST) so both sides receive identical redacted data.
+        masked = apply_privacy(event, privacy)
+        emit_override(masked)
         requests_total.labels(endpoint="webhook", status="accepted").inc()
 
         binding = None
@@ -81,7 +85,7 @@ def _make_handler(adapter: WebhookAdapter, *, privacy: OverridePrivacyConfig):
         if core_client is not None:
             timeout_seconds = request.app.state.adapter_config.core.timeout_seconds
             binding = await bind_to_core(
-                core_client, event, timeout_seconds=timeout_seconds,
+                core_client, masked, timeout_seconds=timeout_seconds,
             )
         else:
             logger.warning(
