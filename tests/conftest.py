@@ -9,7 +9,7 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
     InMemorySpanExporter,
 )
 
-from nthlayer_override_adapter.config import AdapterConfig, CoreConfig
+from nthlayer_override_adapter.config import AdapterConfig, CoreConfig, WebhookAdapter
 
 # Module-level exporter and provider, set once.
 _exporter: InMemorySpanExporter | None = None
@@ -55,10 +55,24 @@ def adapter_config() -> AdapterConfig:
     """Minimal valid AdapterConfig for use in C4+ fixtures.
 
     Provides a core: block so handlers can read adapter_config.core.timeout_seconds.
-    No webhook adapters; default privacy posture.
+    Includes a jira webhook adapter at /webhook/jira so the app_with_fake_core
+    factory registers the webhook route for C6 tests.
     """
     return AdapterConfig(
-        adapters=[],
+        adapters=[
+            WebhookAdapter(
+                source="jira",
+                webhook_path="/webhook/jira",
+                field_mapping={
+                    "decision_id": "issue.customfield_10042",
+                    "corrected_action": "issue.resolution.name",
+                    "reviewer": "issue.assignee.emailAddress",
+                    "timestamp": "issue.updated",
+                    "reason": "issue.resolution.description",
+                },
+                defaults={"source_system": "jira", "service": "fraud-detect"},
+            )
+        ],
         privacy=OverridePrivacyConfig(),
         core=CoreConfig(url="http://localhost:8100", timeout_seconds=5.0),
     )

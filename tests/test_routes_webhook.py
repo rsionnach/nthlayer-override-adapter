@@ -74,3 +74,43 @@ class TestEmptyAdaptersList:
         client = TestClient(app)
         resp = client.post("/webhook/jira", json={})
         assert resp.status_code == 404
+
+
+class TestWebhookBindings:
+    """opensrm-jmy.18: webhook response carries bindings."""
+
+    PAYLOAD: dict = {
+        "issue": {
+            "customfield_10042": "vrd-001",
+            "resolution": {
+                "name": "escalate",
+                "description": "Model regression — escalate to senior analyst",
+            },
+            "assignee": {"emailAddress": "analyst-047@example.com"},
+            "updated": "2026-05-15T12:00:00Z",
+        },
+    }
+
+    def test_webhook_success_response_includes_bindings(self, app_with_fake_core) -> None:
+        """Webhook handler returns 201 with single-decision bindings."""
+        client = TestClient(app_with_fake_core(fake_status=200))
+        resp = client.post("/webhook/jira", json=self.PAYLOAD)
+        assert resp.status_code == 201
+        data = resp.json()
+        assert "bindings" in data
+        assert len(data["bindings"]) == 1
+        for entry in data["bindings"].values():
+            assert entry["core"] == "ok"
+            assert "reason" not in entry
+
+    def test_webhook_core_failure_surfaces_in_response(self, app_with_fake_core) -> None:
+        """Webhook handler returns 201 with failed binding when core returns 404."""
+        client = TestClient(app_with_fake_core(fake_status=404))
+        resp = client.post("/webhook/jira", json=self.PAYLOAD)
+        assert resp.status_code == 201
+        data = resp.json()
+        assert "bindings" in data
+        assert len(data["bindings"]) == 1
+        for entry in data["bindings"].values():
+            assert entry["core"] == "failed"
+            assert entry["reason"] == "verdict_not_found"

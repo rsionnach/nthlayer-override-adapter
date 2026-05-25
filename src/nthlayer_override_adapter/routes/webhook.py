@@ -19,7 +19,7 @@ from starlette.responses import JSONResponse
 from starlette.routing import Route
 
 from nthlayer_override_adapter.config import WebhookAdapter
-from nthlayer_override_adapter.emission import emit_override
+from nthlayer_override_adapter.emission import bind_to_core, emit_override
 from nthlayer_override_adapter.metrics import (
     requests_total,
     validation_errors_total,
@@ -71,7 +71,17 @@ def _make_handler(adapter: WebhookAdapter, *, privacy: OverridePrivacyConfig):
 
         emit_override(event, privacy)
         requests_total.labels(endpoint="webhook", status="accepted").inc()
-        return JSONResponse(accepted_single(event.decision_id), status_code=201)
+
+        binding = None
+        core_client = getattr(request.app.state, "core_client", None)
+        if core_client is not None:
+            timeout_seconds = request.app.state.adapter_config.core.timeout_seconds
+            binding = await bind_to_core(
+                core_client, event, timeout_seconds=timeout_seconds,
+            )
+
+        response_body = accepted_single(event.decision_id, bindings=binding)
+        return JSONResponse(response_body, status_code=201)
 
     return handle
 
