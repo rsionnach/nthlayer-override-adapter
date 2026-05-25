@@ -94,7 +94,7 @@ class TestBindToCore:
         )
         result = await bind_to_core(_FakeClient(), event, timeout_seconds=5.0)
         assert result.core == "ok"
-        assert result.reason == "ok" or result.reason is None  # spec § 5.3: reason optional when core==ok
+        assert result.reason is None  # spec § 5.3: reason absent when core == "ok"
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("status,expected_reason", [
