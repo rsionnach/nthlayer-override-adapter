@@ -30,7 +30,7 @@ class TestBatchHappyPath:
         body = {"overrides": [_entry(f"dec-{i:04d}") for i in range(100)]}
         resp = client.post("/api/v1/overrides/batch", json=body)
 
-        assert resp.status_code == 200
+        assert resp.status_code == 201
         data = resp.json()
         assert len(data["accepted"]) == 100
         assert data["accepted"][0] == "dec-0000"
@@ -164,7 +164,64 @@ class TestBatchSizeCap:
         }
         resp = client.post("/api/v1/overrides/batch", json=body)
 
-        assert resp.status_code == 200
+        assert resp.status_code == 201
         data = resp.json()
         assert data["accepted"] == []
         assert len(data["rejected"]) == 2
+
+
+class TestBatchBindings:
+    """opensrm-jmy.18: per-id bindings in batch response."""
+
+    def test_batch_response_includes_bindings_per_accepted_id(self, app_with_fake_core):
+        from starlette.testclient import TestClient
+        client = TestClient(app_with_fake_core(fake_status=200))
+        body = {
+            "overrides": [
+                {"decision_id": "dec-1", "service": "s", "corrected_action": "approve", "reviewer": "h"},
+                {"decision_id": "dec-2", "service": "s", "corrected_action": "approve", "reviewer": "h"},
+            ]
+        }
+        resp = client.post("/api/v1/overrides/batch", json=body)
+        assert resp.status_code == 201
+        data = resp.json()
+        assert set(data["accepted"]) == {"dec-1", "dec-2"}
+        # Cardinality invariant: bindings.keys() == set(accepted)
+        assert set(data["bindings"].keys()) == set(data["accepted"])
+        for entry in data["bindings"].values():
+            assert entry["core"] == "ok"
+            assert "reason" not in entry  # core==ok → no reason
+
+    def test_batch_duplicates_only_winners_appear_in_bindings(self, app_with_fake_core):
+        from starlette.testclient import TestClient
+        client = TestClient(app_with_fake_core(fake_status=200))
+        body = {
+            "overrides": [
+                {"decision_id": "dec-1", "service": "s", "corrected_action": "reject", "reviewer": "h"},   # loser
+                {"decision_id": "dec-1", "service": "s", "corrected_action": "approve", "reviewer": "h"},  # winner (last in array)
+                {"decision_id": "dec-2", "service": "s", "corrected_action": "approve", "reviewer": "h"},
+            ]
+        }
+        resp = client.post("/api/v1/overrides/batch", json=body)
+        data = resp.json()
+        assert set(data["accepted"]) == {"dec-1", "dec-2"}
+        # Cardinality invariant holds even with duplicates: bindings is keyed by unique decision_id.
+        assert set(data["bindings"].keys()) == {"dec-1", "dec-2"}
+        # The loser is reported in duplicates. It does NOT get its own bindings entry.
+
+    def test_batch_core_failure_per_id(self, app_with_fake_core):
+        """All-fail case: both ids show core==failed in bindings."""
+        from starlette.testclient import TestClient
+        client = TestClient(app_with_fake_core(fake_status=404))
+        body = {
+            "overrides": [
+                {"decision_id": "dec-a", "service": "s", "corrected_action": "approve", "reviewer": "h"},
+                {"decision_id": "dec-b", "service": "s", "corrected_action": "approve", "reviewer": "h"},
+            ]
+        }
+        resp = client.post("/api/v1/overrides/batch", json=body)
+        data = resp.json()
+        assert set(data["bindings"].keys()) == {"dec-a", "dec-b"}
+        for entry in data["bindings"].values():
+            assert entry["core"] == "failed"
+            assert entry["reason"] == "verdict_not_found"

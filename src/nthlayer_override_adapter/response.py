@@ -64,11 +64,23 @@ def accepted_single(
     return out
 
 
-def build_batch_response(result: BatchResult) -> dict[str, Any]:
-    """Final JSON body for a batch POST. Always populated keys."""
-    return {
+def build_batch_response(
+    result: BatchResult,
+    bindings: dict[str, BindingResult] | None = None,
+) -> dict[str, Any]:
+    """Final JSON body for a batch POST. Always populated keys.
+
+    Backward-compatible: if bindings is None (e.g. no core_client wired),
+    the 'bindings' key is omitted from the response.
+    When provided, bindings is keyed by decision_id (winners only; losers
+    of dedup never appear here).
+    """
+    out: dict[str, Any] = {
         "accepted": list(result.accepted),
         "rejected": list(result.rejected),
         "duplicates": list(result.duplicates),
         "errors": list(result.errors),
     }
+    if bindings is not None:
+        out["bindings"] = {k: v.to_dict() for k, v in bindings.items()}
+    return out

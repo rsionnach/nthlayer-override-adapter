@@ -19,6 +19,7 @@ from nthlayer_override_adapter.metrics import (
 )
 from nthlayer_override_adapter.response import (
     BatchResult,
+    BindingResult,
     accepted_single,
     build_batch_response,
 )
@@ -100,10 +101,33 @@ def register_canonical_routes(
                 status_code=413,
             )
 
-        result = _process_batch(entries, privacy=privacy)
+        winners, result = _process_batch(entries)
+
+        # C5 (opensrm-jmy.18): emit-pass — one span per winner, then bind to core.
+        # core_client and adapter_config are set on app.state by the app factory (C7)
+        # or by test fixtures. When core_client is absent, skip binding (backward-compat).
+        core_client = getattr(request.app.state, "core_client", None)
+        if core_client is not None:
+            adapter_cfg = request.app.state.adapter_config
+            timeout_seconds = adapter_cfg.core.timeout_seconds
+        else:
+            timeout_seconds = 5.0
+
+        bindings: dict[str, BindingResult] = {}
+        for decision_id, winner in winners.items():
+            emit_override(winner.event, privacy)
+            result.accepted.append(decision_id)
+            if core_client is not None:
+                bindings[decision_id] = await bind_to_core(
+                    core_client, winner.event, timeout_seconds=timeout_seconds,
+                )
+
         status = "accepted" if result.accepted else "rejected"
         requests_total.labels(endpoint="batch", status=status).inc()
-        return JSONResponse(build_batch_response(result), status_code=200)
+        return JSONResponse(
+            build_batch_response(result, bindings=bindings if core_client is not None else None),
+            status_code=201,
+        )
 
     app.routes.append(Route("/api/v1/overrides", post_single, methods=["POST"]))
     app.routes.append(
@@ -112,15 +136,18 @@ def register_canonical_routes(
 
 
 def _process_batch(
-    entries: list[Any], *, privacy: OverridePrivacyConfig,
-) -> BatchResult:
+    entries: list[Any],
+) -> tuple[dict[str, _Winner], BatchResult]:
     """Walk entries in array order. Last-in-array wins on duplicate decision_id.
 
-    Two-pass: first resolve the winning entry per decision_id without
-    emitting anything, then emit only the winners. This meets the
-    cardinality-match invariant (one emitted span per unique accepted
-    decision_id), which a one-pass emit-as-you-go approach would violate
-    by emitting N spans for N occurrences of the same id.
+    Dedup-pass only: resolves the winning entry per decision_id and populates
+    rejected/duplicates in BatchResult, but does NOT emit spans or append to
+    accepted. The caller (async post_batch) owns the emit-pass so it can
+    await bind_to_core per winner.
+
+    Returns (winners, result) where:
+      - winners: decision_id → _Winner (the entry that will be emitted)
+      - result: BatchResult with rejected and duplicates populated; accepted is empty
     """
     result = BatchResult()
     winners: dict[str, _Winner] = {}
@@ -139,8 +166,6 @@ def _process_batch(
         winners[event.decision_id] = _Winner(index=idx, event=event)
 
     for decision_id, winner in winners.items():
-        emit_override(winner.event, privacy)
-        result.accepted.append(decision_id)
         if decision_id in superseded:
             result.duplicates.append(
                 {
@@ -149,7 +174,8 @@ def _process_batch(
                     "discarded_indices": sorted(superseded[decision_id]),
                 }
             )
-    return result
+
+    return winners, result
 
 
 def _event_from_payload(payload: object) -> OverrideEvent:
