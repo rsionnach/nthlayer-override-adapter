@@ -1,6 +1,7 @@
 """Starlette app factory — wires canonical + webhook routes + health + metrics."""
 from __future__ import annotations
 
+from nthlayer_common.api_client import CoreAPIClient
 from nthlayer_common.metrics import metrics_content_type, render_metrics
 from starlette.applications import Starlette
 from starlette.requests import Request
@@ -23,6 +24,8 @@ def build_app(config: AdapterConfig) -> Starlette:
     register_webhook_routes(
         app, adapters=config.adapters, privacy=config.privacy,
     )
+    app.state.adapter_config = config
+    app.state.core_client = CoreAPIClient(base_url=config.core.url)
     return app
 
 

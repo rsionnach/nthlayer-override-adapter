@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import atexit
 import os
 import sys
@@ -115,6 +116,19 @@ def main() -> int:
         app, cfg = load_app(args.config)
         # Initialise OTel SDK with the resolved endpoint from config.
         _init_otel(cfg.otel_endpoint)
+
+        # Register atexit hook for CoreAPIClient shutdown alongside OTel teardown.
+        def _shutdown_core_client() -> None:
+            client = getattr(app.state, "core_client", None)
+            if client is None:
+                return
+            try:
+                asyncio.run(client.close())
+            except Exception:  # noqa: BLE001 — fail-soft shutdown
+                logger.warning("core_client_shutdown_error")
+
+        atexit.register(_shutdown_core_client)
+
         logger.info(
             "override_adapter_serving",
             host=args.host,

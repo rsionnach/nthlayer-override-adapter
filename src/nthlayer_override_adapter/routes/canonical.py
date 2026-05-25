@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
+import structlog
 from nthlayer_common.overrides import OverrideEvent, OverridePrivacyConfig
 from starlette.applications import Starlette
 from starlette.requests import Request
@@ -14,6 +15,7 @@ from starlette.routing import Route
 
 from nthlayer_override_adapter.emission import bind_to_core, emit_override
 from nthlayer_override_adapter.metrics import (
+    binding_total,
     requests_total,
     validation_errors_total,
 )
@@ -23,6 +25,8 @@ from nthlayer_override_adapter.response import (
     accepted_single,
     build_batch_response,
 )
+
+logger = structlog.get_logger(__name__)
 
 
 @dataclass(frozen=True)
@@ -67,6 +71,12 @@ def register_canonical_routes(
                 timeout_seconds=adapter_cfg.core.timeout_seconds,
             )
         else:
+            logger.warning(
+                "core_client_absent",
+                endpoint="canonical_single",
+                decision_id=event.decision_id,
+            )
+            binding_total.labels(result="skipped", reason="no_client").inc()
             binding = None
 
         return JSONResponse(accepted_single(event.decision_id, bindings=binding), status_code=201)
@@ -111,6 +121,12 @@ def register_canonical_routes(
             adapter_cfg = request.app.state.adapter_config
             timeout_seconds = adapter_cfg.core.timeout_seconds
         else:
+            logger.warning(
+                "core_client_absent",
+                endpoint="canonical_batch",
+                entry_count=len(entries),
+            )
+            binding_total.labels(result="skipped", reason="no_client").inc()
             timeout_seconds = 5.0
 
         bindings: dict[str, BindingResult] = {}

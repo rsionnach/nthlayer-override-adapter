@@ -58,3 +58,33 @@ class TestAllRoutesWired:
     def test_webhook_present(self, client) -> None:
         resp = client.post("/webhook/jira", json={"bad": "body"})
         assert resp.status_code == 400
+
+
+class TestBuildAppCoreClientLifecycle:
+    """opensrm-jmy.18 C7: build_app wires CoreAPIClient onto app.state."""
+
+    def test_build_app_attaches_core_client_to_state(self, adapter_config) -> None:
+        """build_app instantiates CoreAPIClient and attaches it to app.state."""
+        from nthlayer_common.api_client import CoreAPIClient
+
+        from nthlayer_override_adapter.app import build_app
+
+        app = build_app(adapter_config)
+        assert app.state.core_client is not None
+        assert isinstance(app.state.core_client, CoreAPIClient)
+        # adapter_config must also be reachable from state for handlers
+        assert app.state.adapter_config is adapter_config
+
+    def test_build_app_core_client_base_url_matches_config(
+        self, adapter_config
+    ) -> None:
+        """CoreAPIClient.base_url reflects adapter_config.core.url."""
+        from nthlayer_override_adapter.app import build_app
+
+        app = build_app(adapter_config)
+        client = app.state.core_client
+        # CoreAPIClient stores base_url directly on the dataclass field;
+        # __post_init__ strips a trailing slash, so compare without one.
+        expected = adapter_config.core.url.rstrip("/")
+        actual = getattr(client, "base_url", None)
+        assert actual == expected

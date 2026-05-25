@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 
+import structlog
 from nthlayer_common.overrides import (
     OverridePrivacyConfig,
     map_webhook_to_override,
@@ -21,10 +22,13 @@ from starlette.routing import Route
 from nthlayer_override_adapter.config import WebhookAdapter
 from nthlayer_override_adapter.emission import bind_to_core, emit_override
 from nthlayer_override_adapter.metrics import (
+    binding_total,
     requests_total,
     validation_errors_total,
 )
 from nthlayer_override_adapter.response import accepted_single
+
+logger = structlog.get_logger(__name__)
 
 
 def register_webhook_routes(
@@ -79,6 +83,13 @@ def _make_handler(adapter: WebhookAdapter, *, privacy: OverridePrivacyConfig):
             binding = await bind_to_core(
                 core_client, event, timeout_seconds=timeout_seconds,
             )
+        else:
+            logger.warning(
+                "core_client_absent",
+                endpoint="webhook",
+                decision_id=event.decision_id,
+            )
+            binding_total.labels(result="skipped", reason="no_client").inc()
 
         response_body = accepted_single(event.decision_id, bindings=binding)
         return JSONResponse(response_body, status_code=201)
