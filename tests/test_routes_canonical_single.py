@@ -1,3 +1,5 @@
+from unittest.mock import MagicMock
+
 import pytest
 from nthlayer_common.overrides import OverridePrivacyConfig
 from starlette.applications import Starlette
@@ -124,3 +126,33 @@ class TestCanonicalSingleBindings:
         assert data["accepted"] == ["dec-missing"]
         assert data["bindings"]["dec-missing"]["core"] == "failed"
         assert data["bindings"]["dec-missing"]["reason"] == "verdict_not_found"
+
+    def test_otel_failure_still_reports_to_core(
+        self, app_with_fake_core, monkeypatch
+    ) -> None:
+        """Spec § 10 OTel-fails-core-still-runs: when the OTel exporter raises,
+        the response envelope must show {"otel": "failed", "core": "ok"}.
+        The HTTP 201 is unchanged — fail-open posture is preserved.
+        """
+        import nthlayer_override_adapter.emission as emission_mod
+
+        # Make the tracer's start_as_current_span raise to exercise the
+        # fail-open except block and force emit_override to return False.
+        bad_tracer = MagicMock()
+        bad_tracer.start_as_current_span.side_effect = RuntimeError("exporter_down")
+        monkeypatch.setattr(emission_mod.trace, "get_tracer", lambda _name: bad_tracer)
+
+        app = app_with_fake_core(fake_status=200)
+        client = TestClient(app)
+        body = {
+            "decision_id": "dec-otel-fail",
+            "service": "fraud-detect",
+            "corrected_action": "approve",
+            "reviewer": "reviewer-hash",
+        }
+        resp = client.post("/api/v1/overrides", json=body)
+        assert resp.status_code == 201  # fail-open — HTTP status unchanged
+        data = resp.json()
+        assert data["accepted"] == ["dec-otel-fail"]
+        assert data["bindings"]["dec-otel-fail"]["otel"] == "failed"
+        assert data["bindings"]["dec-otel-fail"]["core"] == "ok"

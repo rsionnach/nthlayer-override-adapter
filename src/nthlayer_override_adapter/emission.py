@@ -75,7 +75,7 @@ def apply_privacy(
     )
 
 
-def emit_override(event: OverrideEvent) -> None:
+def emit_override(event: OverrideEvent) -> bool:
     """Emit one unparented ``gen_ai.override`` span for this override.
 
     Expects a pre-masked event — callers must call ``apply_privacy`` upstream
@@ -85,6 +85,11 @@ def emit_override(event: OverrideEvent) -> None:
     Exporter failures are logged + counted but do not raise — fail-open
     posture matches the rest of the ecosystem (caller still treats the HTTP
     request as accepted).
+
+    Returns:
+        True if the span was emitted successfully, False if the internal
+        fail-open caught an exporter exception. Callers use this to populate
+        ``BindingResult.otel`` honestly (spec § 5.3, § 10).
     """
     started = time.perf_counter()
     tracer = trace.get_tracer(_TRACER_NAME)
@@ -94,6 +99,7 @@ def emit_override(event: OverrideEvent) -> None:
             for key, value in event.to_otel_attributes().items():
                 span.set_attribute(key, value)
         emission_total.labels(result="emitted").inc()
+        return True
     except Exception as exc:  # noqa: BLE001 — fail-open is intentional
         emission_total.labels(result="failed").inc()
         collector_errors_total.inc()
@@ -102,6 +108,7 @@ def emit_override(event: OverrideEvent) -> None:
             decision_id=event.decision_id,
             error=str(exc),
         )
+        return False
     finally:
         emit_duration_seconds.observe(time.perf_counter() - started)
 

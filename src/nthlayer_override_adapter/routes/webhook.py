@@ -26,7 +26,7 @@ from nthlayer_override_adapter.metrics import (
     requests_total,
     validation_errors_total,
 )
-from nthlayer_override_adapter.response import accepted_single
+from nthlayer_override_adapter.response import BindingResult, accepted_single
 
 logger = structlog.get_logger(__name__)
 
@@ -77,15 +77,21 @@ def _make_handler(adapter: WebhookAdapter, *, privacy: OverridePrivacyConfig):
         # The masked event is passed to both emit_override (OTel) and
         # bind_to_core (HTTP POST) so both sides receive identical redacted data.
         masked = apply_privacy(event, privacy)
-        emit_override(masked)
+        otel_ok = emit_override(masked)
         requests_total.labels(endpoint="webhook", status="accepted").inc()
 
         binding = None
         core_client = getattr(request.app.state, "core_client", None)
         if core_client is not None:
             timeout_seconds = request.app.state.adapter_config.core.timeout_seconds
-            binding = await bind_to_core(
+            core_binding = await bind_to_core(
                 core_client, masked, timeout_seconds=timeout_seconds,
+            )
+            # Reflect actual OTel status in the response (spec § 5.3).
+            binding = BindingResult(
+                otel="ok" if otel_ok else "failed",
+                core=core_binding.core,
+                reason=core_binding.reason,
             )
         else:
             logger.warning(

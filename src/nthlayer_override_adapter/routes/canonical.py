@@ -61,7 +61,7 @@ def register_canonical_routes(
         # identical redacted data. Core trusts pre_redacted=True and stores
         # the reviewer string as-is, so plaintext must never reach core.
         masked = apply_privacy(event, privacy)
-        emit_override(masked)
+        otel_ok = emit_override(masked)
         requests_total.labels(endpoint="canonical", status="accepted").inc()
 
         # C4 (opensrm-jmy.18): bind to core after OTel emission.
@@ -75,6 +75,12 @@ def register_canonical_routes(
                 core_client,
                 masked,
                 timeout_seconds=adapter_cfg.core.timeout_seconds,
+            )
+            # Reflect actual OTel status in the response (spec § 5.3).
+            binding = BindingResult(
+                otel="ok" if otel_ok else "failed",
+                core=binding.core,
+                reason=binding.reason,
             )
         else:
             logger.warning(
@@ -140,11 +146,17 @@ def register_canonical_routes(
             # Spec § 7: apply privacy once per winner; pass masked event to
             # both emit_override (OTel) and bind_to_core (HTTP POST to core).
             masked = apply_privacy(winner.event, privacy)
-            emit_override(masked)
+            otel_ok = emit_override(masked)
             result.accepted.append(decision_id)
             if core_client is not None:
-                bindings[decision_id] = await bind_to_core(
+                core_binding = await bind_to_core(
                     core_client, masked, timeout_seconds=timeout_seconds,
+                )
+                # Reflect actual OTel status per winner (spec § 5.3).
+                bindings[decision_id] = BindingResult(
+                    otel="ok" if otel_ok else "failed",
+                    core=core_binding.core,
+                    reason=core_binding.reason,
                 )
 
         status = "accepted" if result.accepted else "rejected"
