@@ -129,17 +129,16 @@ def register_canonical_routes(
         # core_client and adapter_config are set on app.state by the app factory (C7)
         # or by test fixtures. When core_client is absent, skip binding (backward-compat).
         core_client = getattr(request.app.state, "core_client", None)
-        if core_client is not None:
-            adapter_cfg = request.app.state.adapter_config
-            timeout_seconds = adapter_cfg.core.timeout_seconds
-        else:
+        if core_client is None:
             logger.warning(
                 "core_client_absent",
                 endpoint="canonical_batch",
                 entry_count=len(entries),
             )
             binding_total.labels(result="skipped", reason="no_client").inc()
-            timeout_seconds = 5.0
+            # don't compute timeout — bind_to_core won't be called
+        else:
+            timeout_seconds = request.app.state.adapter_config.core.timeout_seconds
 
         bindings: dict[str, BindingResult] = {}
         for decision_id, winner in winners.items():

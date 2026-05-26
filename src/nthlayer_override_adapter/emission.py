@@ -116,6 +116,10 @@ def emit_override(event: OverrideEvent) -> bool:
 _STATUS_TO_REASON: dict[int, str] = {
     200: "ok",
     404: "verdict_not_found",
+    # 409 is "conflict" at the HTTP layer (existing override differs OR CAS
+    # miss) but the spec § 5.3 bounded reason set has no "conflict". Collapsed
+    # to validation_error; structured logs (override_conflicts_with_existing,
+    # override_lost_race_to_concurrent_writer) distinguish the cause.
     409: "validation_error",
     422: "validation_error",
     0:   "core_unreachable",

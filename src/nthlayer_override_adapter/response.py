@@ -46,7 +46,13 @@ def accepted_single(
     decision_id: str,
     bindings: BindingResult | None = None,
 ) -> dict[str, Any]:
-    """Body for a successful single-override POST.
+    """Build the response envelope for a single accepted override (opensrm-jmy.18).
+
+    Returns a one-item batch-shaped envelope ({accepted, rejected, duplicates,
+    errors[, bindings]}) for wire-shape parity with build_batch_response —
+    callers can read both response types via the same shape. The pre-jmy.18
+    "{decision_id, emitted_to_otel}" shape was replaced as part of the spec §
+    5.3 unification.
 
     Backward-compatible: bindings defaults to None and is omitted from the
     response when not provided (e.g. in tests that don't wire a core client).
