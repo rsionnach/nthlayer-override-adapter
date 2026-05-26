@@ -90,6 +90,23 @@ class TestSingleOverride:
         assert "timestamp" in resp.json()["detail"]
 
 
+class TestSingleNoCoreClient:
+    def test_single_no_core_client_returns_201_without_bindings(self, client):
+        """opensrm-jmy.18 edge-case: absent core_client skips binding silently."""
+        # client fixture has no core_client on app.state — exercises the absent-guard.
+        resp = client.post("/api/v1/overrides", json={
+            "decision_id": "dec-no-core",
+            "service": "s",
+            "corrected_action": "approve",
+            "reviewer": "h",
+        })
+        assert resp.status_code == 201
+        data = resp.json()
+        assert data["accepted"] == ["dec-no-core"]
+        # No core_client → bindings key must be absent entirely.
+        assert "bindings" not in data
+
+
 class TestCanonicalSingleBindings:
     """opensrm-jmy.18: single-override response carries bindings field."""
 

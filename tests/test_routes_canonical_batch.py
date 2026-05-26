@@ -170,6 +170,21 @@ class TestBatchSizeCap:
         assert len(data["rejected"]) == 2
 
 
+class TestBatchEmptyOverrides:
+    def test_batch_empty_overrides_returns_201(self, client):
+        """opensrm-jmy.18 edge-case: empty batch returns 201 with empty arrays."""
+        # client fixture has no core_client wired — no decisions to bind.
+        resp = client.post("/api/v1/overrides/batch", json={"overrides": []})
+        assert resp.status_code == 201
+        data = resp.json()
+        assert data["accepted"] == []
+        assert data["rejected"] == []
+        assert data["duplicates"] == []
+        assert data["errors"] == []
+        # No core_client → no bindings key.
+        assert "bindings" not in data
+
+
 class TestBatchBindings:
     """opensrm-jmy.18: per-id bindings in batch response."""
 

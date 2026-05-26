@@ -114,6 +114,7 @@ class TestBindToCore:
         (409, "validation_error"),
         (422, "validation_error"),
         (500, "other"),
+        (503, "other"),  # opensrm-jmy.18 edge-case: unmapped status falls through to "other"
     ])
     async def test_bind_to_core_status_mapping(self, status, expected_reason):
         from nthlayer_override_adapter.emission import bind_to_core
