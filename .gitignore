@@ -8,3 +8,6 @@ dist/
 build/
 .mypy_cache/
 .coverage
+
+# Local backups created by the auto-memory retirement plan (2026-06-04)
+*.bak
