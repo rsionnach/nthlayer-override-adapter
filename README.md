@@ -30,6 +30,8 @@ uv run pytest -q
 uv run ruff check src/ tests/
 ```
 
+Ecosystem testing conventions: [../nthlayer/docs/testing.md](../nthlayer/docs/testing.md).
+
 ## License
 
 Apache 2.0.
