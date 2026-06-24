@@ -143,7 +143,7 @@ async def bind_to_core(
             client.apply_override(event.decision_id, payload),
             timeout=timeout_seconds,
         )
-    except asyncio.TimeoutError:
+    except TimeoutError:
         binding_total.labels(result="failed", reason="core_timeout").inc()
         return BindingResult(core="failed", reason="core_timeout")
 

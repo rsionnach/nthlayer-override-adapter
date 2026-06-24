@@ -1,6 +1,6 @@
-import pytest
 from datetime import UTC, datetime
 
+import pytest
 from nthlayer_common.overrides import (
     OverrideEvent,
     OverridePrivacyConfig,
@@ -93,12 +93,15 @@ class TestBindToCore:
 
     @pytest.mark.asyncio
     async def test_bind_to_core_success_returns_ok(self):
-        from nthlayer_override_adapter.emission import bind_to_core
         from nthlayer_common.api_client import APIResult
+
+        from nthlayer_override_adapter.emission import bind_to_core
 
         class _FakeClient:
             async def apply_override(self, vid, payload):
-                return APIResult(ok=True, status_code=200, data={"id": vid}, error=None, detail=None)
+                return APIResult(
+                    ok=True, status_code=200, data={"id": vid}, error=None, detail=None
+                )
 
         event = OverrideEvent(
             decision_id="dec-1", service="s", corrected_action="approve",
@@ -117,8 +120,9 @@ class TestBindToCore:
         (503, "other"),  # opensrm-jmy.18 edge-case: unmapped status falls through to "other"
     ])
     async def test_bind_to_core_status_mapping(self, status, expected_reason):
-        from nthlayer_override_adapter.emission import bind_to_core
         from nthlayer_common.api_client import APIResult
+
+        from nthlayer_override_adapter.emission import bind_to_core
 
         class _FakeClient:
             async def apply_override(self, vid, payload):
@@ -133,8 +137,9 @@ class TestBindToCore:
 
     @pytest.mark.asyncio
     async def test_bind_to_core_connection_failed_returns_core_unreachable(self):
-        from nthlayer_override_adapter.emission import bind_to_core
         from nthlayer_common.api_client import APIResult
+
+        from nthlayer_override_adapter.emission import bind_to_core
 
         class _FakeClient:
             async def apply_override(self, vid, payload):
@@ -149,8 +154,9 @@ class TestBindToCore:
 
     @pytest.mark.asyncio
     async def test_bind_to_core_timeout_returns_core_timeout(self):
-        from nthlayer_override_adapter.emission import bind_to_core
         import asyncio
+
+        from nthlayer_override_adapter.emission import bind_to_core
 
         class _SlowClient:
             async def apply_override(self, vid, payload):

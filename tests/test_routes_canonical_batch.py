@@ -193,8 +193,14 @@ class TestBatchBindings:
         client = TestClient(app_with_fake_core(fake_status=200))
         body = {
             "overrides": [
-                {"decision_id": "dec-1", "service": "s", "corrected_action": "approve", "reviewer": "h"},
-                {"decision_id": "dec-2", "service": "s", "corrected_action": "approve", "reviewer": "h"},
+                {
+                    "decision_id": "dec-1", "service": "s",
+                    "corrected_action": "approve", "reviewer": "h",
+                },
+                {
+                    "decision_id": "dec-2", "service": "s",
+                    "corrected_action": "approve", "reviewer": "h",
+                },
             ]
         }
         resp = client.post("/api/v1/overrides/batch", json=body)
@@ -212,9 +218,20 @@ class TestBatchBindings:
         client = TestClient(app_with_fake_core(fake_status=200))
         body = {
             "overrides": [
-                {"decision_id": "dec-1", "service": "s", "corrected_action": "reject", "reviewer": "h"},   # loser
-                {"decision_id": "dec-1", "service": "s", "corrected_action": "approve", "reviewer": "h"},  # winner (last in array)
-                {"decision_id": "dec-2", "service": "s", "corrected_action": "approve", "reviewer": "h"},
+                # loser
+                {
+                    "decision_id": "dec-1", "service": "s",
+                    "corrected_action": "reject", "reviewer": "h",
+                },
+                # winner (last in array)
+                {
+                    "decision_id": "dec-1", "service": "s",
+                    "corrected_action": "approve", "reviewer": "h",
+                },
+                {
+                    "decision_id": "dec-2", "service": "s",
+                    "corrected_action": "approve", "reviewer": "h",
+                },
             ]
         }
         resp = client.post("/api/v1/overrides/batch", json=body)
@@ -230,8 +247,14 @@ class TestBatchBindings:
         client = TestClient(app_with_fake_core(fake_status=404))
         body = {
             "overrides": [
-                {"decision_id": "dec-a", "service": "s", "corrected_action": "approve", "reviewer": "h"},
-                {"decision_id": "dec-b", "service": "s", "corrected_action": "approve", "reviewer": "h"},
+                {
+                    "decision_id": "dec-a", "service": "s",
+                    "corrected_action": "approve", "reviewer": "h",
+                },
+                {
+                    "decision_id": "dec-b", "service": "s",
+                    "corrected_action": "approve", "reviewer": "h",
+                },
             ]
         }
         resp = client.post("/api/v1/overrides/batch", json=body)
