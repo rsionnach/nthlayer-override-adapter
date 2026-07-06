@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/rsionnach/nthlayer-override-adapter/compare/v0.2.0...v0.2.1) (2026-07-06)
+
+
+### Documentation
+
+* add contributing guide (opensrm-tu04.4) ([4f5bad9](https://github.com/rsionnach/nthlayer-override-adapter/commit/4f5bad9a03fcb60de34fb3404cdfab9f5283d191))
+
 ## [0.2.0](https://github.com/rsionnach/nthlayer-override-adapter/compare/v0.1.0...v0.2.0) (2026-06-24)
 
 
