@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.2.1](https://github.com/rsionnach/nthlayer-override-adapter/compare/v0.2.0...v0.2.1) (2026-09-27)
+
+
+### Bug Fixes
+
+* declare the nthlayer-common range this repo is actually tested against ([0e43e3f](https://github.com/rsionnach/nthlayer-override-adapter/commit/0e43e3f1ba3fa94899fed241f6e8a9a9adb68a20))
+* declare the nthlayer-common range this repo is actually tested against (opensrm-p3bm) ([67c9dc6](https://github.com/rsionnach/nthlayer-override-adapter/commit/67c9dc6ccf658036ed6c9fb0b243261f1e4bde77))
+
+
+### Documentation
+
+* add contributing guide (opensrm-tu04.4) ([4f5bad9](https://github.com/rsionnach/nthlayer-override-adapter/commit/4f5bad9a03fcb60de34fb3404cdfab9f5283d191))
+
 ## [0.2.0](https://github.com/rsionnach/nthlayer-override-adapter/compare/v0.1.0...v0.2.0) (2026-06-24)
 
 
