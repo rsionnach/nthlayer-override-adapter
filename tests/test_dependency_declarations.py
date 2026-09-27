@@ -188,7 +188,7 @@ def test_declared_floor_is_the_version_under_test(name):
 
 @pytest.mark.parametrize("name", SIBLINGS)
 def test_declared_range_has_an_upper_bound(name):
-    """A missing ceiling is how 1.0.0 becomes the resolver's escape hatch.
+    """A missing ceiling is how an ancient release becomes the resolver's escape hatch.
 
     Without an upper bound, a future major of the sibling is silently
     considered compatible, and this package becomes the one the resolver
