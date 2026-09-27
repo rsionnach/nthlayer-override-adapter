@@ -43,7 +43,7 @@ jobs:
             -v "${{ github.workspace }}/dist:/dist:ro" \
             -v "${{ github.workspace }}/tests/smoke:/smoke:ro" \
             python:3.11-slim bash -c "
-              pip install --no-cache-dir /dist/*.whl pytest &&
+              pip install --no-cache-dir /dist/*.whl pytest 'packaging>=22' &&
               pytest /smoke -v
             "
       - name: publish
