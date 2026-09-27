@@ -102,6 +102,22 @@ break the cardinality-match invariant, or silently drop spans.
     `otel_sdk_not_initialised` at WARNING so operators know it is
     running blind.
 
+16. **A declared dependency range must admit exactly the versions tested.**
+    Not the oldest that imports, not a future major. The floor equals the
+    installed sibling and there is always a ceiling — anything wider publishes
+    support for versions nothing here has run. Enforced by two guards that
+    read deliberately different things:
+    `tests/test_dependency_declarations.py` reads `pyproject.toml` and fails
+    locally; `tests/smoke/test_resolved_dependencies.py` reads the BUILT
+    artifact's metadata and is decisive in the release workflow's Docker smoke
+    gate, where dependencies resolve from PyPI. Do not derive the expected
+    major from the declared range — that makes the test agree with a wrong
+    range. This repo shipped `nthlayer-common>=1.5.0,<2.0.0` while testing
+    2.1.2; the guards are copies of nthlayer-core's, deliberately duplicated
+    rather than extracted, because that smoke gate's container holds only the
+    wheel, pytest and packaging, so a helper living in any sibling repo is
+    simply absent there [opensrm-p3bm].
+
 ## Where to find detail
 
 - Source layout, transport dependencies, spec/plan references:
