@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.3](https://github.com/rsionnach/nthlayer-override-adapter/compare/v0.2.2...v0.2.3) (2026-10-11)
+
+
+### Dependencies
+
+* require nthlayer-common 4.0.0 (opensrm-4zdc) ([44a00c5](https://github.com/rsionnach/nthlayer-override-adapter/commit/44a00c5f37bc8adb1deedbf8350aeabe61ba285a))
+
 ## [0.2.2](https://github.com/rsionnach/nthlayer-override-adapter/compare/v0.2.1...v0.2.2) (2026-10-06)
 
 
