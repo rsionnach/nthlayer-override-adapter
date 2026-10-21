@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.5](https://github.com/rsionnach/nthlayer-override-adapter/compare/v0.2.4...v0.2.5) (2026-10-21)
+
+
+### Dependencies
+
+* require nthlayer-common 5.2.0 (opensrm-g35i) ([e5fbfe2](https://github.com/rsionnach/nthlayer-override-adapter/commit/e5fbfe25da6a0e5f953e089bf6a96c9339cf50bd))
+
 ## [0.2.4](https://github.com/rsionnach/nthlayer-override-adapter/compare/v0.2.3...v0.2.4) (2026-10-12)
 
 
