@@ -957,7 +957,7 @@ provides-extras = ["dev"]
 
 [[package]]
 name = "nthlayer-override-adapter"
-version = "0.2.5"
+version = "0.2.6"
 source = { editable = "." }
 dependencies = [
     { name = "nthlayer-common" },
