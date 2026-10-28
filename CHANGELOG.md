@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.2.10](https://github.com/rsionnach/nthlayer-override-adapter/compare/v0.2.9...v0.2.10) (2026-10-28)
+
+
+### Bug Fixes
+
+* require nthlayer-common 5.6.0 (opensrm-wo62.4.1) ([7378feb](https://github.com/rsionnach/nthlayer-override-adapter/commit/7378feb1a3ce0435d3496c7a52ba65e232004836))
+* require nthlayer-common 5.6.0 (opensrm-wo62.4.1) ([389f82b](https://github.com/rsionnach/nthlayer-override-adapter/commit/389f82b923178849bd8bc6ec41096ae173a13402))
+* require nthlayer-common 5.7.0 (opensrm-wo62.4.7) ([76b9b9c](https://github.com/rsionnach/nthlayer-override-adapter/commit/76b9b9cf8898afaaf9185e06d96130d1d53b4841))
+* require nthlayer-common 5.7.0 (opensrm-wo62.4.7) ([d5bab43](https://github.com/rsionnach/nthlayer-override-adapter/commit/d5bab4304d9781bd0f57fa4a381260398617bf1c))
+
 ## [0.2.9](https://github.com/rsionnach/nthlayer-override-adapter/compare/v0.2.8...v0.2.9) (2026-10-27)
 
 
