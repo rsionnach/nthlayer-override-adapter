@@ -7,6 +7,7 @@ name = "nthlayer-override-adapter"
 version = "0.2.11"
 description = "NthLayer override-event sidecar — HTTP → gen_ai.override OTel span bridge"
 readme = "README.md"
+license = {text = "Apache-2.0"}
 requires-python = ">=3.11"
 dependencies = [
     # Floor is the version this repo is built and tested against, NOT the
