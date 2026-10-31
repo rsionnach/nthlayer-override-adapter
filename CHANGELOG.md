@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.12](https://github.com/rsionnach/nthlayer-override-adapter/compare/v0.2.11...v0.2.12) (2026-10-31)
+
+
+### Bug Fixes
+
+* ship the Apache-2.0 LICENSE and declare it in package metadata (opensrm-bqfj) ([f71185b](https://github.com/rsionnach/nthlayer-override-adapter/commit/f71185bf576f69389ec6ee3bfba39f5b1b68174d))
+* ship the Apache-2.0 LICENSE and declare it in package metadata (opensrm-bqfj) ([214d81a](https://github.com/rsionnach/nthlayer-override-adapter/commit/214d81a5a63ed3005f081673f4411b89dad371d3))
+
 ## [0.2.11](https://github.com/rsionnach/nthlayer-override-adapter/compare/v0.2.10...v0.2.11) (2026-10-29)
 
 
