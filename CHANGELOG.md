@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.3.0](https://github.com/rsionnach/nthlayer-override-adapter/compare/v0.2.14...v0.3.0) (2026-11-01)
+
+
+### ⚠ BREAKING CHANGES
+
+* the adapter's span is renamed gen_ai.override -> nthlayer.reversal, and its attributes move from gen_ai.override.* to nthlayer.reversal.*: reviewer -> actor, corrected_action -> new_value, decision_id, reason, service, original_action, confidence_at_decision and source_system keep their names under the new prefix, and nthlayer.reversal.type=human_override and nthlayer.reversal.actor_type=human are added. The free-text reason is no longer put on the span by default: set privacy.emit_reason_on_span: true to keep it (core still stores it either way; exclude_reason still drops it everywhere). Update any collector filter, spanmetrics config or trace query keyed on the old span or attribute names.
+
+### Bug Fixes
+
+* emit overrides as an nthlayer.reversal span; reason opt-in (opensrm-1dua) ([6d0dbbf](https://github.com/rsionnach/nthlayer-override-adapter/commit/6d0dbbfe48aac7038bceefb79c356c15d36fd8ad))
+* require nthlayer-common 5.9.1 ([1d35181](https://github.com/rsionnach/nthlayer-override-adapter/commit/1d35181f2316c555b580c897d11078f831e93abb))
+* require nthlayer-common 5.9.1 ([400508f](https://github.com/rsionnach/nthlayer-override-adapter/commit/400508fe16bb5c887dabf1722241094235a7aba4))
+* the override span is nthlayer.reversal, with A1 attribute names (opensrm-1dua) ([a9a9125](https://github.com/rsionnach/nthlayer-override-adapter/commit/a9a91258499da26147b98c45fdc7ec40b272c71a))
+
 ## [0.2.14](https://github.com/rsionnach/nthlayer-override-adapter/compare/v0.2.13...v0.2.14) (2026-11-01)
 
 
