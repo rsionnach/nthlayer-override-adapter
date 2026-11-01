@@ -22,6 +22,18 @@ class TestLoadMinimal:
         # A1 §4.2 reason is Opt-in on the span (opensrm-1dua, ruling R3).
         assert cfg.emit_reason_on_span is False
 
+    def test_emit_reason_on_span_defaults_off_when_constructed_directly(self) -> None:
+        from nthlayer_override_adapter.config import AdapterConfig, CoreConfig
+
+        cfg = AdapterConfig(
+            adapters=[], privacy=OverridePrivacyConfig(), core=CoreConfig(url="http://core")
+        )
+        assert cfg.emit_reason_on_span is False
+
+    def test_example_config_loads_with_reason_off_the_span(self) -> None:
+        example = Path(__file__).parent.parent / "override-adapter-config.yaml.example"
+        assert load_config(example).emit_reason_on_span is False
+
     def test_emit_reason_on_span_opt_in(self, tmp_path: Path) -> None:
         target = tmp_path / "cfg.yaml"
         target.write_text(
