@@ -72,13 +72,6 @@ class TestPrivacy:
         attrs = span_exporter.get_finished_spans()[0].attributes
         assert attrs["nthlayer.reversal.actor"] == "analyst-047"
 
-    def test_reason_dropped_when_excluded(self, span_exporter) -> None:
-        privacy = OverridePrivacyConfig(exclude_reason=True)
-        emit_override(apply_privacy(_make_event(reason="sensitive"), privacy))
-        attrs = span_exporter.get_finished_spans()[0].attributes
-        assert "nthlayer.reversal.reason" not in attrs
-
-
 class TestReasonIsOptIn:
     """A1 §4.2 marks reason Opt-in: off the span unless enabled (ruling R3)."""
 

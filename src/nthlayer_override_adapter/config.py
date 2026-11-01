@@ -47,7 +47,9 @@ class AdapterConfig:
     max_batch_size: int = 1000
     # Put the override's free-text reason on the nthlayer.reversal span
     # (OpenSRM Addendum A1 §4.2: Opt-in). Off by default; core still stores
-    # it. YAML: privacy.emit_reason_on_span.
+    # it. YAML: privacy.emit_reason_on_span. Lives here, not on
+    # OverridePrivacyConfig: that type is nthlayer-common's and governs what
+    # core stores; this flag governs the span only.
     emit_reason_on_span: bool = False
 
 

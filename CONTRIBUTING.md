@@ -75,7 +75,9 @@ Commits land on `main`; `release-please` maintains the release PR and cuts
 - **`apply_privacy` is the single privacy boundary.** The sidecar is the only
   PII-redaction point; routes call `apply_privacy` once and pass the masked
   event to both `emit_override` and `bind_to_core`. Never apply privacy twice,
-  and never inside `emit_override`.
+  and never redact inside `emit_override`. Its one filter (leaving `reason`
+  off the span unless `emit_reason` is set; OpenSRM A1 §4.2 Opt-in) decides
+  what goes on the span, not what is redacted; core is unaffected.
 - **Unparented spans.** `nthlayer.reversal` is emitted with an empty OTel
   `Context()` — overrides are operator decisions, not bound to a service
   trace. Do not "fix" this to inherit a current trace context.

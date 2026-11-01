@@ -23,8 +23,10 @@ break the cardinality-match invariant, or silently drop spans.
 1. **`apply_privacy` is the single privacy boundary (spec §7).**
    Routes call it once to produce a masked event, then pass that same
    masked event to both `emit_override` (OTel) and `bind_to_core`
-   (HTTP). Never apply privacy twice. Never apply it inside
-   `emit_override`.
+   (HTTP). Never apply privacy twice. Never redact inside
+   `emit_override`: its one filter, leaving `reason` off the span unless
+   `emit_reason` is set (OpenSRM A1 §4.2 Opt-in), decides what goes on
+   the span, not what is redacted, and core is unaffected.
 
 2. **`pre_redacted` vs `plaintext_reviewer`.**
    `OverridePrivacyConfig.pre_redacted` is the preferred flag to skip

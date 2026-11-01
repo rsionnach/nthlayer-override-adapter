@@ -12,8 +12,11 @@ a masked copy of the event, then pass the masked event to both
 core). This ensures the OTel pipeline and core storage always receive
 the same redacted payload.
 
-``emit_override`` expects a pre-masked event and does NOT apply any
-further privacy transformation.
+Redaction (hashing, ``exclude_reason``) happens only in ``apply_privacy``.
+``emit_override`` expects a pre-masked event and applies one span-only
+filter: it leaves ``reason`` off the span unless ``emit_reason`` is set.
+That filter decides what goes on the span, not what is redacted; core is
+unaffected.
 
 Rationale for unparented spans: overrides are operator decisions not
 bound to any service trace. Treating each as a standalone span
@@ -91,7 +94,7 @@ def emit_override(event: OverrideEvent, *, emit_reason: bool = False) -> bool:
 
     Expects a pre-masked event — callers must call ``apply_privacy`` upstream
     and pass the masked result here. This function emits the event's reviewer
-    string as-is; it does NOT apply any privacy transformation.
+    string as-is; it does NOT redact (see ``emit_reason`` above).
 
     Exporter failures are logged + counted but do not raise — fail-open
     posture matches the rest of the ecosystem (caller still treats the HTTP
