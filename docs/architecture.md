@@ -46,9 +46,9 @@ src/nthlayer_override_adapter/
                   #     pre_redacted (preferred). Routes call once and
                   #     pass the masked event to both emit_override and
                   #     bind_to_core.
-                  # emit_override(event) -> bool
+                  # emit_override(event, *, emit_reason=False) -> bool
                   #     — expects pre-masked event; opens unparented
-                  #     gen_ai.override span via empty
+                  #     nthlayer.reversal span via empty
                   #     otel_context.Context(); True on success, False
                   #     on fail-open (logged + counted, never raises)
                   # bind_to_core(client, event, timeout_seconds)

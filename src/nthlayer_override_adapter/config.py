@@ -45,6 +45,12 @@ class AdapterConfig:
     core: CoreConfig
     otel_endpoint: str | None = None
     max_batch_size: int = 1000
+    # Put the override's free-text reason on the nthlayer.reversal span
+    # (OpenSRM Addendum A1 §4.2: Opt-in). Off by default; core still stores
+    # it. YAML: privacy.emit_reason_on_span. Lives here, not on
+    # OverridePrivacyConfig: that type is nthlayer-common's and governs what
+    # core stores; this flag governs the span only.
+    emit_reason_on_span: bool = False
 
 
 def load_config(path: str | Path) -> AdapterConfig:
@@ -107,12 +113,22 @@ def load_config(path: str | Path) -> AdapterConfig:
             f"batch.max_size must be positive, got {max_batch_size}"
         )
 
+    # _parse_privacy has already rejected a non-mapping privacy section.
+    emit_reason_on_span = (raw.get("privacy") or {}).get("emit_reason_on_span", False)
+    # Strict: bool("false") is True, which would put free text on the span.
+    if not isinstance(emit_reason_on_span, bool):
+        raise ConfigError(
+            "privacy.emit_reason_on_span must be true or false, got "
+            f"{type(emit_reason_on_span).__name__} {emit_reason_on_span!r}"
+        )
+
     return AdapterConfig(
         adapters=adapters,
         privacy=privacy,
         core=core_cfg,
         otel_endpoint=otel_endpoint,
         max_batch_size=max_batch_size,
+        emit_reason_on_span=emit_reason_on_span,
     )
 
 

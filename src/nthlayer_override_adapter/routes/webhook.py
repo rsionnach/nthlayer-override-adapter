@@ -36,19 +36,22 @@ def register_webhook_routes(
     *,
     adapters: list[WebhookAdapter],
     privacy: OverridePrivacyConfig,
+    emit_reason: bool = False,
 ) -> None:
     """Mount one POST {webhook_path} route per configured adapter."""
     for adapter in adapters:
         app.routes.append(
             Route(
                 adapter.webhook_path,
-                _make_handler(adapter, privacy=privacy),
+                _make_handler(adapter, privacy=privacy, emit_reason=emit_reason),
                 methods=["POST"],
             )
         )
 
 
-def _make_handler(adapter: WebhookAdapter, *, privacy: OverridePrivacyConfig):
+def _make_handler(
+    adapter: WebhookAdapter, *, privacy: OverridePrivacyConfig, emit_reason: bool = False,
+):
     async def handle(request: Request) -> JSONResponse:
         try:
             payload = await request.json()
@@ -77,7 +80,7 @@ def _make_handler(adapter: WebhookAdapter, *, privacy: OverridePrivacyConfig):
         # The masked event is passed to both emit_override (OTel) and
         # bind_to_core (HTTP POST) so both sides receive identical redacted data.
         masked = apply_privacy(event, privacy)
-        otel_ok = emit_override(masked)
+        otel_ok = emit_override(masked, emit_reason=emit_reason)
         requests_total.labels(endpoint="webhook", status="accepted").inc()
 
         binding = None

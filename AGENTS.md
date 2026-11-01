@@ -1,7 +1,7 @@
 # nthlayer-override-adapter — agent-facing commands
 
 Standalone HTTP sidecar that accepts override events and emits
-`gen_ai.override` OTel spans, plus binds each accepted override to the
+`nthlayer.reversal` OTel spans, plus binds each accepted override to the
 verdict store via HTTP POST to nthlayer-core.
 
 ## Stack

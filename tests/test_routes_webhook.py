@@ -53,9 +53,9 @@ class TestJiraWebhook:
         spans = span_exporter.get_finished_spans()
         assert len(spans) == 1
         attrs = spans[0].attributes
-        assert attrs["gen_ai.override.decision_id"] == "vrd-001"
-        assert attrs["gen_ai.override.service"] == "fraud-detect"
-        assert attrs["gen_ai.override.corrected_action"] == "escalate"
+        assert attrs["nthlayer.reversal.decision_id"] == "vrd-001"
+        assert attrs["nthlayer.reversal.service"] == "fraud-detect"
+        assert attrs["nthlayer.reversal.new_value"] == "escalate"
 
     def test_missing_required_path_400(self, client) -> None:
         bad = {"issue": {"customfield_10042": "vrd-002"}}  # no reviewer / corrected_action

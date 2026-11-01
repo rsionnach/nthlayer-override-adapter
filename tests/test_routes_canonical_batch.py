@@ -65,9 +65,9 @@ class TestBatchDuplicates:
         spans = span_exporter.get_finished_spans()
         assert len(spans) == 4
         # The dec-002 span carries the LAST corrected_action ("escalate").
-        dec_002 = [s for s in spans if s.attributes["gen_ai.override.decision_id"] == "dec-002"]
+        dec_002 = [s for s in spans if s.attributes["nthlayer.reversal.decision_id"] == "dec-002"]
         assert len(dec_002) == 1
-        assert dec_002[0].attributes["gen_ai.override.corrected_action"] == "escalate"
+        assert dec_002[0].attributes["nthlayer.reversal.new_value"] == "escalate"
 
 
 class TestBatchRejected:
@@ -103,7 +103,7 @@ class TestCardinalityInvariant:
         data = resp.json()
 
         emitted_ids = {
-            s.attributes["gen_ai.override.decision_id"]
+            s.attributes["nthlayer.reversal.decision_id"]
             for s in span_exporter.get_finished_spans()
         }
 
