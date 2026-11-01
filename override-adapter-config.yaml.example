@@ -3,7 +3,7 @@
 #
 # Each entry under `adapters:` registers a POST endpoint at `webhook_path`
 # that runs `field_mapping` over the inbound payload to produce a canonical
-# gen_ai.override event. `defaults` supplies values for any field the
+# override event (emitted as an nthlayer.reversal span). `defaults` supplies values for any field the
 # mapping cannot resolve from the payload (e.g. source_system, service).
 
 adapters:
@@ -27,9 +27,13 @@ privacy:
   # Reviewer hashed by default (SHA-256). Opt in to plaintext only if
   # downstream consumers genuinely need the raw identifier.
   plaintext_reviewer: false
-  # `reason` text is stored by default. Set true to drop it from
-  # emitted spans entirely.
+  # `reason` text is stored in core by default. Set true to drop it
+  # everywhere: from core and from the span.
   exclude_reason: false
+  # `reason` is free text, so it stays off the nthlayer.reversal span
+  # unless opted in (OpenSRM Addendum A1 §4.2: Opt-in). Core still stores
+  # it either way, unless exclude_reason is set.
+  emit_reason_on_span: false
 
 # Cap on the size of a /api/v1/overrides/batch payload. Requests above
 # this size return HTTP 413. Default is 1000 when omitted.

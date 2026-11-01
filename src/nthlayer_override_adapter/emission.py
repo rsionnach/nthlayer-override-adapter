@@ -1,4 +1,9 @@
-"""OTel emission for override events — unparented gen_ai.override spans.
+"""OTel emission for override events — unparented ``nthlayer.reversal`` spans.
+
+The span carries OpenSRM Addendum A1 §4.2's ``nthlayer.reversal.*``
+attributes (formerly ``gen_ai.override.*``, opensrm-1dua). A1 defines
+the four §4 events as OTel log-based events; carrying this one as a span
+is a known deviation, tracked as opensrm-a829.
 
 Privacy is applied ONCE at the route level (spec § 7): the sidecar is
 the single privacy boundary. Routes call ``apply_privacy`` to produce
@@ -24,6 +29,7 @@ from typing import Any
 
 import structlog
 from nthlayer_common.overrides import (
+    REVERSAL_EVENT_NAME,
     OverrideEvent,
     OverridePrivacyConfig,
     hash_reviewer,
@@ -41,7 +47,7 @@ from nthlayer_override_adapter.response import BindingResult
 
 logger = structlog.get_logger(__name__)
 
-_SPAN_NAME = "gen_ai.override"
+_SPAN_NAME = REVERSAL_EVENT_NAME
 _TRACER_NAME = "nthlayer-override-adapter"
 
 
@@ -75,8 +81,13 @@ def apply_privacy(
     )
 
 
-def emit_override(event: OverrideEvent) -> bool:
-    """Emit one unparented ``gen_ai.override`` span for this override.
+def emit_override(event: OverrideEvent, *, emit_reason: bool = False) -> bool:
+    """Emit one unparented ``nthlayer.reversal`` span for this override.
+
+    ``reason`` is free text, and A1 §4.2 makes it Opt-in: it is left off the
+    span unless ``emit_reason`` is set (config ``privacy.emit_reason_on_span``;
+    ruling R3). This governs the span only; core still receives the reason
+    through ``bind_to_core``. ``exclude_reason`` removes it from both, upstream.
 
     Expects a pre-masked event — callers must call ``apply_privacy`` upstream
     and pass the masked result here. This function emits the event's reviewer
@@ -96,7 +107,10 @@ def emit_override(event: OverrideEvent) -> bool:
     unparented_context = otel_context.Context()
     try:
         with tracer.start_as_current_span(_SPAN_NAME, context=unparented_context) as span:
-            for key, value in event.to_otel_attributes().items():
+            attributes = event.to_otel_attributes()
+            if not emit_reason:
+                attributes.pop(f"{REVERSAL_EVENT_NAME}.reason", None)
+            for key, value in attributes.items():
                 span.set_attribute(key, value)
         emission_total.labels(result="emitted").inc()
         return True

@@ -20,9 +20,11 @@ def build_app(config: AdapterConfig) -> Starlette:
     app.routes.append(Route("/metrics", _metrics, methods=["GET"]))
     register_canonical_routes(
         app, privacy=config.privacy, max_batch_size=config.max_batch_size,
+        emit_reason=config.emit_reason_on_span,
     )
     register_webhook_routes(
         app, adapters=config.adapters, privacy=config.privacy,
+        emit_reason=config.emit_reason_on_span,
     )
     app.state.adapter_config = config
     app.state.core_client = CoreAPIClient(base_url=config.core.url)

@@ -2,7 +2,7 @@
 
 Standalone HTTP sidecar. Accepts override events (canonical JSON, batch
 JSON, or generic webhook payloads), emits each as one unparented
-`gen_ai.override` OTel span, and binds each accepted override to the
+`nthlayer.reversal` OTel span, and binds each accepted override to the
 verdict store via HTTP POST to nthlayer-core.
 
 Implements `opensrm-jmy.7` (Wave A) and `opensrm-jmy.18` (verdict-binding).
@@ -36,13 +36,13 @@ break the cardinality-match invariant, or silently drop spans.
    before `OverrideEvent.to_otel_attributes()` so plaintext reviewers
    never enter the OTel pipeline.
 
-4. **Unparented spans.** `gen_ai.override` is emitted with an empty
+4. **Unparented spans.** `nthlayer.reversal` is emitted with an empty
    OTel `Context()` — overrides are operator decisions, not bound to
    any service trace. Do **not** "fix" this to inherit a current trace
    context.
 
 5. **Cardinality-match invariant.** Response `accepted` set always
-   equals the set of emitted-span `gen_ai.override.decision_id`
+   equals the set of emitted-span `nthlayer.reversal.decision_id`
    values. Pinned by `tests/test_routes_canonical_batch.py::TestCardinalityInvariant`.
 
 6. **Fail-open on OTel export errors.** HTTP request still returns 201

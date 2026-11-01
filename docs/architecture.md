@@ -48,7 +48,7 @@ src/nthlayer_override_adapter/
                   #     bind_to_core.
                   # emit_override(event) -> bool
                   #     — expects pre-masked event; opens unparented
-                  #     gen_ai.override span via empty
+                  #     nthlayer.reversal span via empty
                   #     otel_context.Context(); True on success, False
                   #     on fail-open (logged + counted, never raises)
                   # bind_to_core(client, event, timeout_seconds)

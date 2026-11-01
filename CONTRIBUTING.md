@@ -2,7 +2,7 @@
 
 Thank you for considering contributing to **nthlayer-override-adapter** — a
 standalone HTTP sidecar that accepts override events (canonical/batch JSON or
-webhook payloads), emits each as one unparented `gen_ai.override` OTel span,
+webhook payloads), emits each as one unparented `nthlayer.reversal` OTel span,
 and binds each accepted override to the verdict store via HTTP POST to
 `nthlayer-core`. We're in active v1.5 development and welcome feedback from
 the SRE/DevOps community.
@@ -76,7 +76,7 @@ Commits land on `main`; `release-please` maintains the release PR and cuts
   PII-redaction point; routes call `apply_privacy` once and pass the masked
   event to both `emit_override` and `bind_to_core`. Never apply privacy twice,
   and never inside `emit_override`.
-- **Unparented spans.** `gen_ai.override` is emitted with an empty OTel
+- **Unparented spans.** `nthlayer.reversal` is emitted with an empty OTel
   `Context()` — overrides are operator decisions, not bound to a service
   trace. Do not "fix" this to inherit a current trace context.
 - **Fail-open.** OTel export and core-binding errors still return HTTP 201;

@@ -36,7 +36,11 @@ class _Winner:
 
 
 def register_canonical_routes(
-    app: Starlette, *, privacy: OverridePrivacyConfig, max_batch_size: int = 1000,
+    app: Starlette,
+    *,
+    privacy: OverridePrivacyConfig,
+    max_batch_size: int = 1000,
+    emit_reason: bool = False,
 ) -> None:
     """Mount /api/v1/overrides and /api/v1/overrides/batch on the app."""
 
@@ -61,7 +65,7 @@ def register_canonical_routes(
         # identical redacted data. Core trusts pre_redacted=True and stores
         # the reviewer string as-is, so plaintext must never reach core.
         masked = apply_privacy(event, privacy)
-        otel_ok = emit_override(masked)
+        otel_ok = emit_override(masked, emit_reason=emit_reason)
         requests_total.labels(endpoint="canonical", status="accepted").inc()
 
         # C4 (opensrm-jmy.18): bind to core after OTel emission.
@@ -145,7 +149,7 @@ def register_canonical_routes(
             # Spec § 7: apply privacy once per winner; pass masked event to
             # both emit_override (OTel) and bind_to_core (HTTP POST to core).
             masked = apply_privacy(winner.event, privacy)
-            otel_ok = emit_override(masked)
+            otel_ok = emit_override(masked, emit_reason=emit_reason)
             result.accepted.append(decision_id)
             if core_client is not None:
                 core_binding = await bind_to_core(

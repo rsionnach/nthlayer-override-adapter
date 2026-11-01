@@ -26,20 +26,24 @@ def _make_event(**overrides: object) -> OverrideEvent:
 
 
 class TestEmissionShape:
-    def test_emits_one_span_named_gen_ai_override(self, span_exporter) -> None:
+    def test_emits_one_span_named_nthlayer_reversal(self, span_exporter) -> None:
         privacy = OverridePrivacyConfig()
         emit_override(apply_privacy(_make_event(), privacy))
         spans = span_exporter.get_finished_spans()
         assert len(spans) == 1
-        assert spans[0].name == "gen_ai.override"
+        assert spans[0].name == "nthlayer.reversal"
 
     def test_span_carries_required_attributes(self, span_exporter) -> None:
         privacy = OverridePrivacyConfig()
         emit_override(apply_privacy(_make_event(), privacy))
         attrs = span_exporter.get_finished_spans()[0].attributes
-        assert attrs["gen_ai.override.decision_id"] == "vrd-001"
-        assert attrs["gen_ai.override.service"] == "fraud-detect"
-        assert attrs["gen_ai.override.corrected_action"] == "escalate"
+        assert attrs["nthlayer.reversal.decision_id"] == "vrd-001"
+        assert attrs["nthlayer.reversal.service"] == "fraud-detect"
+        assert attrs["nthlayer.reversal.new_value"] == "escalate"
+        # OpenSRM Addendum A1 §4.2: an override is a human's reversal.
+        assert attrs["nthlayer.reversal.type"] == "human_override"
+        assert attrs["nthlayer.reversal.actor_type"] == "human"
+        assert not [k for k in attrs if k.startswith("gen_ai.")]
 
     def test_span_is_unparented(self, span_exporter) -> None:
         privacy = OverridePrivacyConfig()
@@ -53,26 +57,50 @@ class TestPrivacy:
         privacy = OverridePrivacyConfig()
         emit_override(apply_privacy(_make_event(reviewer="analyst-047"), privacy))
         attrs = span_exporter.get_finished_spans()[0].attributes
-        assert attrs["gen_ai.override.reviewer"] == hash_reviewer("analyst-047")
+        assert attrs["nthlayer.reversal.actor"] == hash_reviewer("analyst-047")
 
     def test_reviewer_plaintext_when_opted_in(self, span_exporter) -> None:
         privacy = OverridePrivacyConfig(plaintext_reviewer=True)
         emit_override(apply_privacy(_make_event(reviewer="analyst-047"), privacy))
         attrs = span_exporter.get_finished_spans()[0].attributes
-        assert attrs["gen_ai.override.reviewer"] == "analyst-047"
+        assert attrs["nthlayer.reversal.actor"] == "analyst-047"
 
     def test_reviewer_plaintext_when_pre_redacted(self, span_exporter) -> None:
         """pre_redacted=True (preferred per spec § 7) also suppresses hashing."""
         privacy = OverridePrivacyConfig(pre_redacted=True)
         emit_override(apply_privacy(_make_event(reviewer="analyst-047"), privacy))
         attrs = span_exporter.get_finished_spans()[0].attributes
-        assert attrs["gen_ai.override.reviewer"] == "analyst-047"
+        assert attrs["nthlayer.reversal.actor"] == "analyst-047"
 
     def test_reason_dropped_when_excluded(self, span_exporter) -> None:
         privacy = OverridePrivacyConfig(exclude_reason=True)
         emit_override(apply_privacy(_make_event(reason="sensitive"), privacy))
         attrs = span_exporter.get_finished_spans()[0].attributes
-        assert "gen_ai.override.reason" not in attrs
+        assert "nthlayer.reversal.reason" not in attrs
+
+
+class TestReasonIsOptIn:
+    """A1 §4.2 marks reason Opt-in: off the span unless enabled (ruling R3)."""
+
+    def test_reason_not_on_span_by_default(self, span_exporter) -> None:
+        privacy = OverridePrivacyConfig()
+        emit_override(apply_privacy(_make_event(reason="model regression"), privacy))
+        attrs = span_exporter.get_finished_spans()[0].attributes
+        assert "nthlayer.reversal.reason" not in attrs
+
+    def test_reason_on_span_when_opted_in(self, span_exporter) -> None:
+        emit_override(
+            apply_privacy(_make_event(reason="model regression"), OverridePrivacyConfig()),
+            emit_reason=True,
+        )
+        attrs = span_exporter.get_finished_spans()[0].attributes
+        assert attrs["nthlayer.reversal.reason"] == "model regression"
+
+    def test_exclude_reason_wins_over_opt_in(self, span_exporter) -> None:
+        privacy = OverridePrivacyConfig(exclude_reason=True)
+        emit_override(apply_privacy(_make_event(reason="sensitive"), privacy), emit_reason=True)
+        attrs = span_exporter.get_finished_spans()[0].attributes
+        assert "nthlayer.reversal.reason" not in attrs
 
 
 class TestOptionalFields:
@@ -83,9 +111,9 @@ class TestOptionalFields:
             privacy,
         ))
         attrs = span_exporter.get_finished_spans()[0].attributes
-        assert "gen_ai.override.reason" not in attrs
-        assert "gen_ai.override.original_action" not in attrs
-        assert "gen_ai.override.source_system" not in attrs
+        assert "nthlayer.reversal.reason" not in attrs
+        assert "nthlayer.reversal.original_action" not in attrs
+        assert "nthlayer.reversal.source_system" not in attrs
 
 
 class TestBindToCore:
