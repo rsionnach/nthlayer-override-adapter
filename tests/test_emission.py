@@ -72,6 +72,7 @@ class TestPrivacy:
         attrs = span_exporter.get_finished_spans()[0].attributes
         assert attrs["nthlayer.reversal.actor"] == "analyst-047"
 
+
 class TestReasonIsOptIn:
     """A1 §4.2 marks reason Opt-in: off the span unless enabled (ruling R3)."""
 
