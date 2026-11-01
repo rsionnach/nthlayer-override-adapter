@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.14](https://github.com/rsionnach/nthlayer-override-adapter/compare/v0.2.13...v0.2.14) (2026-11-01)
+
+
+### Bug Fixes
+
+* require nthlayer-common 5.9.0 ([7b4dec7](https://github.com/rsionnach/nthlayer-override-adapter/commit/7b4dec786f69548e7718471e4da5476763db5518))
+* require nthlayer-common 5.9.0 ([804ce40](https://github.com/rsionnach/nthlayer-override-adapter/commit/804ce4024c586d52faad76b86b9fcfa666c45389))
+
 ## [0.2.13](https://github.com/rsionnach/nthlayer-override-adapter/compare/v0.2.12...v0.2.13) (2026-10-31)
 
 
