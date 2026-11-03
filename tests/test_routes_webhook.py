@@ -1,5 +1,6 @@
 import pytest
 from nthlayer_common.overrides import OverridePrivacyConfig
+from nthlayer_common.telemetry import TelemetryStatus
 from starlette.applications import Starlette
 from starlette.testclient import TestClient
 
@@ -24,9 +25,11 @@ def jira_adapter() -> WebhookAdapter:
 
 
 @pytest.fixture
-def client(span_exporter, jira_adapter) -> TestClient:
+def client(jira_adapter) -> TestClient:
     app = Starlette()
-    register_webhook_routes(app, adapters=[jira_adapter], privacy=OverridePrivacyConfig())
+    register_webhook_routes(
+        app, adapters=[jira_adapter], privacy=OverridePrivacyConfig(), exporting=True,
+    )
     return TestClient(app)
 
 
@@ -44,15 +47,15 @@ JIRA_PAYLOAD: dict[str, object] = {
 
 
 class TestJiraWebhook:
-    def test_jira_shaped_payload_produces_span(self, client, span_exporter) -> None:
+    def test_jira_shaped_payload_produces_log_record(self, client, reversals) -> None:
         resp = client.post("/webhook/jira", json=JIRA_PAYLOAD)
         assert resp.status_code == 201
         body = resp.json()
         assert body["accepted"] == ["vrd-001"]
         assert body["rejected"] == []
-        spans = span_exporter.get_finished_spans()
-        assert len(spans) == 1
-        attrs = spans[0].attributes
+        events = reversals()
+        assert len(events) == 1
+        attrs = events[0].attributes
         assert attrs["nthlayer.reversal.decision_id"] == "vrd-001"
         assert attrs["nthlayer.reversal.service"] == "fraud-detect"
         assert attrs["nthlayer.reversal.new_value"] == "escalate"
@@ -68,9 +71,11 @@ class TestJiraWebhook:
 
 
 class TestEmptyAdaptersList:
-    def test_no_routes_registered(self, span_exporter) -> None:
+    def test_no_routes_registered(self) -> None:
         app = Starlette()
-        register_webhook_routes(app, adapters=[], privacy=OverridePrivacyConfig())
+        register_webhook_routes(
+            app, adapters=[], privacy=OverridePrivacyConfig(), exporting=True,
+        )
         client = TestClient(app)
         resp = client.post("/webhook/jira", json={})
         assert resp.status_code == 404
@@ -100,6 +105,7 @@ class TestWebhookBindings:
         assert "bindings" in data
         assert len(data["bindings"]) == 1
         for entry in data["bindings"].values():
+            assert entry["otel"] == "ok"
             assert entry["core"] == "ok"
             assert "reason" not in entry
 
@@ -114,3 +120,14 @@ class TestWebhookBindings:
         for entry in data["bindings"].values():
             assert entry["core"] == "failed"
             assert entry["reason"] == "verdict_not_found"
+
+    def test_webhook_otel_not_exporting(self, app_with_fake_core, reversals) -> None:
+        """Telemetry off (ruling Q7): binding says otel failed; core unaffected."""
+        client = TestClient(
+            app_with_fake_core(fake_status=200, telemetry=TelemetryStatus.NO_ENDPOINT),
+        )
+        resp = client.post("/webhook/jira", json=self.PAYLOAD)
+        assert resp.status_code == 201
+        data = resp.json()
+        assert data["bindings"] == {"vrd-001": {"otel": "failed", "core": "ok"}}
+        assert len(reversals()) == 1

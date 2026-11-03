@@ -3,7 +3,7 @@
 #
 # Each entry under `adapters:` registers a POST endpoint at `webhook_path`
 # that runs `field_mapping` over the inbound payload to produce a canonical
-# override event, emitted as an nthlayer.reversal span. `defaults` supplies
+# override event, emitted as an nthlayer.reversal OTel log record. `defaults` supplies
 # values for any field the mapping cannot resolve from the payload (e.g.
 # source_system, service).
 
@@ -29,12 +29,13 @@ privacy:
   # downstream consumers genuinely need the raw identifier.
   plaintext_reviewer: false
   # `reason` text is stored in core by default. Set true to drop it
-  # everywhere: from core and from the span.
+  # everywhere: from core and from the OTel event.
   exclude_reason: false
-  # `reason` is free text, so it stays off the nthlayer.reversal span
+  # `reason` is free text, so it stays off the nthlayer.reversal event
   # unless opted in (OpenSRM Addendum A1 §4.2: Opt-in). Core still stores
-  # it either way, unless exclude_reason is set.
-  emit_reason_on_span: false
+  # it either way, unless exclude_reason is set. (Was emit_reason_on_span
+  # before 0.4.0; the old key is now a config error.)
+  emit_reason: false
 
 # Cap on the size of a /api/v1/overrides/batch payload. Requests above
 # this size return HTTP 413. Default is 1000 when omitted.
@@ -43,6 +44,8 @@ batch:
 
 otel:
   exporter: otlp
-  # OTLP gRPC endpoint for the collector. Falls back to the standard
-  # $OTEL_EXPORTER_OTLP_ENDPOINT env var when this key is absent.
+  # OTLP gRPC endpoint for the collector (port 4317; the exporter is gRPC
+  # only). Use an http:// URL for a plaintext collector. Falls back to
+  # $OTEL_EXPORTER_OTLP_LOGS_ENDPOINT, then $OTEL_EXPORTER_OTLP_ENDPOINT,
+  # when this key is absent.
   endpoint: "http://localhost:4317"

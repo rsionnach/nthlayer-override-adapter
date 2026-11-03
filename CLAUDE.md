@@ -2,8 +2,9 @@
 
 Standalone HTTP sidecar. Accepts override events (canonical JSON, batch
 JSON, or generic webhook payloads), emits each as one unparented
-`nthlayer.reversal` OTel span, and binds each accepted override to the
-verdict store via HTTP POST to nthlayer-core.
+`nthlayer.reversal` OTel log record (a span before 0.4.0), and binds
+each accepted override to the verdict store via HTTP POST to
+nthlayer-core.
 
 Implements `opensrm-jmy.7` (Wave A) and `opensrm-jmy.18` (verdict-binding).
 
@@ -18,15 +19,15 @@ Python ≥3.11, `uv`-managed. Starlette + Uvicorn ASGI runtime.
 ## Hard rules (conventions)
 
 These are load-bearing — wrong-side mistakes either leak plaintext PII,
-break the cardinality-match invariant, or silently drop spans.
+break the cardinality-match invariant, or silently drop events.
 
 1. **`apply_privacy` is the single privacy boundary (spec §7).**
    Routes call it once to produce a masked event, then pass that same
    masked event to both `emit_override` (OTel) and `bind_to_core`
    (HTTP). Never apply privacy twice. Never redact inside
-   `emit_override`: its one filter, leaving `reason` off the span unless
-   `emit_reason` is set (OpenSRM A1 §4.2 Opt-in), decides what goes on
-   the span, not what is redacted, and core is unaffected.
+   `emit_override`: its one filter, leaving `reason` off the event unless
+   `emit_reason` is set (OpenSRM A1 §4.2 Opt-in), decides what goes to
+   OTel, not what is redacted, and core is unaffected.
 
 2. **`pre_redacted` vs `plaintext_reviewer`.**
    `OverridePrivacyConfig.pre_redacted` is the preferred flag to skip
@@ -38,18 +39,24 @@ break the cardinality-match invariant, or silently drop spans.
    before `OverrideEvent.to_otel_attributes()` so plaintext reviewers
    never enter the OTel pipeline.
 
-4. **Unparented spans.** `nthlayer.reversal` is emitted with an empty
-   OTel `Context()` — overrides are operator decisions, not bound to
-   any service trace. Do **not** "fix" this to inherit a current trace
-   context.
+4. **Unparented events.** `nthlayer.reversal` is emitted under an empty
+   OTel `Context()` (the logs SDK would otherwise stamp the current
+   span's trace id on it) — overrides are operator decisions, not bound
+   to any service trace. Do **not** "fix" this to inherit a current
+   trace context. A1 §4.0 asks an unparented event for §5 provenance,
+   which §5 defines for decision events only; the reversal's link is
+   `nthlayer.reversal.decision_id`.
 
 5. **Cardinality-match invariant.** Response `accepted` set always
-   equals the set of emitted-span `nthlayer.reversal.decision_id`
+   equals the set of emitted `nthlayer.reversal.decision_id`
    values. Pinned by `tests/test_routes_canonical_batch.py::TestCardinalityInvariant`.
 
 6. **Fail-open on OTel export errors.** HTTP request still returns 201
-   even if export is degraded; the OTel SDK retries/buffers.
-   `override_collector_errors_total` increments. Same posture for
+   even if export is degraded; `emit_event` never raises and the SDK's
+   batch processor retries/buffers. Export failures happen on the batch
+   thread, so no per-request signal sees them: a binding's `otel` and
+   `override_emission_total{result}` report whether telemetry is
+   exporting at all (`TelemetryStatus.exporting`, ruling Q7). Same posture for
    `bind_to_core` failures (core unreachable, timeout, 4xx): the
    `binding_total{result="failed"}` counter increments and the
    `BindingResult(core="failed")` is reported back, but the HTTP 201
@@ -86,23 +93,23 @@ break the cardinality-match invariant, or silently drop spans.
     `datetime` objects only; any other type raises `ValueError` →
     HTTP 400, not 500.
 
-13. **OTel shutdown.** atexit hook in `cli.py` calls
-    `provider.force_flush(timeout_millis=5000)` then
-    `provider.shutdown()` so in-flight spans are flushed on SIGTERM
-    or clean process exit. Do not remove.
+13. **OTel shutdown.** nthlayer-common's `init_telemetry` installs its
+    LoggerProvider with `shutdown_on_exit=True`, so buffered records are
+    flushed at clean process exit (SIGTERM through uvicorn included). The
+    adapter registers no OTel atexit hook of its own.
 
 14. **`BatchResult.errors` is reserved.** Field exists on the
     dataclass but is intentionally unpopulated; reserved for future
     error classification. Do not populate it here without a spec
     change.
 
-15. **OTel SDK no-op fallback.** `_init_otel()` resolves the OTLP
-    endpoint from `otel.endpoint` in config, then from
-    `$OTEL_EXPORTER_OTLP_ENDPOINT`. When neither is set the SDK is
-    not initialised — `emission.py` gets the no-op tracer and spans
-    are silently dropped. The adapter logs
-    `otel_sdk_not_initialised` at WARNING so operators know it is
-    running blind.
+15. **Telemetry off is loud, not silent.** `cli._init_telemetry()` calls
+    nthlayer-common's `init_telemetry` with `otel.endpoint` from config,
+    which falls back to `$OTEL_EXPORTER_OTLP_LOGS_ENDPOINT`, then
+    `$OTEL_EXPORTER_OTLP_ENDPOINT`. When the status is not exporting (no
+    endpoint, or the SDK is missing) the adapter logs `otel_not_exporting`
+    at WARNING and every response binding says `otel: failed`. It runs
+    before `build_app`, which requires the status.
 
 16. **A declared dependency range must admit exactly the versions tested.**
     Not the oldest that imports, not a future major. The floor equals the

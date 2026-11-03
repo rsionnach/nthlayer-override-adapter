@@ -287,3 +287,11 @@ def test_uv_lock_records_this_projects_version():
         f"uv.lock records {project['name']} {entries[0].get('version')}, pyproject says "
         f"{project['version']}: run `uv lock` (and check release-please-config.json extra-files)"
     )
+
+
+def test_common_is_declared_with_the_otel_extra():
+    """nthlayer-common's ``otel`` extra carries the OTel logs SDK and OTLP
+    gRPC log exporter, which the adapter no longer declares itself. Without
+    it the wheel installs, starts, and reports ``otel: failed`` for every
+    override because init_telemetry finds no SDK (opensrm-a829)."""
+    assert "otel" in _siblings()["nthlayer-common"].extras

@@ -19,3 +19,11 @@ def test_all_submodules_import() -> None:
             assert getattr(mod, name) is not None, (
                 f"{info.name}.{name} declared in __all__ but unresolved"
             )
+
+
+def test_the_log_export_stack_is_installed() -> None:
+    """What nthlayer-common's init_telemetry imports to export the
+    nthlayer.reversal record. Run in the release container, where deps come
+    from the built wheel, this fails if the [otel] extra stops reaching it."""
+    importlib.import_module("opentelemetry.sdk._logs")
+    importlib.import_module("opentelemetry.exporter.otlp.proto.grpc._log_exporter")

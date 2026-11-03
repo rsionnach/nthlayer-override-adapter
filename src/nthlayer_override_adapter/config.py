@@ -45,12 +45,12 @@ class AdapterConfig:
     core: CoreConfig
     otel_endpoint: str | None = None
     max_batch_size: int = 1000
-    # Put the override's free-text reason on the nthlayer.reversal span
+    # Put the override's free-text reason on the nthlayer.reversal event
     # (OpenSRM Addendum A1 §4.2: Opt-in). Off by default; core still stores
-    # it. YAML: privacy.emit_reason_on_span. Lives here, not on
+    # it. YAML: privacy.emit_reason. Lives here, not on
     # OverridePrivacyConfig: that type is nthlayer-common's and governs what
-    # core stores; this flag governs the span only.
-    emit_reason_on_span: bool = False
+    # core stores; this flag governs the OTel event only.
+    emit_reason: bool = False
 
 
 def load_config(path: str | Path) -> AdapterConfig:
@@ -98,6 +98,13 @@ def load_config(path: str | Path) -> AdapterConfig:
             f"'otel' must be a mapping, got {type(otel_raw).__name__}"
         )
     otel_endpoint = otel_raw.get("endpoint")
+    # A number or list here would otherwise reach init_telemetry and crash
+    # startup with a traceback instead of a config error.
+    if otel_endpoint is not None and not isinstance(otel_endpoint, str):
+        raise ConfigError(
+            "otel.endpoint must be a string URL, got "
+            f"{type(otel_endpoint).__name__} {otel_endpoint!r}"
+        )
     batch_raw = raw.get("batch") or {}
     if not isinstance(batch_raw, dict):
         raise ConfigError(
@@ -114,12 +121,21 @@ def load_config(path: str | Path) -> AdapterConfig:
         )
 
     # _parse_privacy has already rejected a non-mapping privacy section.
-    emit_reason_on_span = (raw.get("privacy") or {}).get("emit_reason_on_span", False)
-    # Strict: bool("false") is True, which would put free text on the span.
-    if not isinstance(emit_reason_on_span, bool):
+    privacy_raw = raw.get("privacy") or {}
+    # Renamed in 0.4.0 with the move from span to log record (ruling Q8).
+    # Refused rather than ignored: ignoring it would silently drop an
+    # operator's opt-in.
+    if "emit_reason_on_span" in privacy_raw:
         raise ConfigError(
-            "privacy.emit_reason_on_span must be true or false, got "
-            f"{type(emit_reason_on_span).__name__} {emit_reason_on_span!r}"
+            "privacy.emit_reason_on_span was renamed privacy.emit_reason in 0.4.0 "
+            "(the event is no longer a span); rename the key"
+        )
+    emit_reason = privacy_raw.get("emit_reason", False)
+    # Strict: bool("false") is True, which would put free text on the event.
+    if not isinstance(emit_reason, bool):
+        raise ConfigError(
+            "privacy.emit_reason must be true or false, got "
+            f"{type(emit_reason).__name__} {emit_reason!r}"
         )
 
     return AdapterConfig(
@@ -128,7 +144,7 @@ def load_config(path: str | Path) -> AdapterConfig:
         core=core_cfg,
         otel_endpoint=otel_endpoint,
         max_batch_size=max_batch_size,
-        emit_reason_on_span=emit_reason_on_span,
+        emit_reason=emit_reason,
     )
 
 
