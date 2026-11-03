@@ -32,7 +32,9 @@ Each accepted override is one OTLP log record:
 
 A collector pipeline that counted the span with the **spanmetrics**
 connector must count the log record instead. The **count** connector does
-this:
+this. The configuration below is an illustration, not a tested artefact: it
+has not been run through `otelcol validate`, so check it against your
+Collector's version.
 
 ```yaml
 receivers:

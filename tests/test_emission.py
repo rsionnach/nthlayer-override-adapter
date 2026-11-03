@@ -60,13 +60,20 @@ class TestEmissionShape:
         privacy = OverridePrivacyConfig()
         _emit(apply_privacy(_make_event(), privacy))
         attrs = reversals()[0].attributes
+        # OpenSRM Addendum A1 §4.2's attributes.
         assert attrs["nthlayer.reversal.decision_id"] == "vrd-001"
-        assert attrs["nthlayer.reversal.service"] == "fraud-detect"
         assert attrs["nthlayer.reversal.new_value"] == "escalate"
-        # OpenSRM Addendum A1 §4.2: an override is a human's reversal.
+        # A1 §4.2: an override is a human's reversal.
         assert attrs["nthlayer.reversal.type"] == "human_override"
         assert attrs["nthlayer.reversal.actor_type"] == "human"
         assert not [k for k in attrs if k.startswith("gen_ai.")]
+
+    def test_record_carries_the_service_extension(self, reversals) -> None:
+        """Not an A1 §4.2 attribute: an implementation extension under the
+        same prefix (opensrm-1dua ruling R2), which the count connector in
+        docs/upgrading-0.4.md labels by."""
+        _emit(apply_privacy(_make_event(), OverridePrivacyConfig()))
+        assert reversals()[0].attributes["nthlayer.reversal.service"] == "fraud-detect"
 
     def test_record_is_unparented_inside_an_active_span(self, event_capture) -> None:
         # A private provider, never set globally: the global TracerProvider
