@@ -137,3 +137,46 @@ class TestTelemetryDecidesOtelBinding:
         assert resp.status_code == 201, resp.text
         assert resp.json()["bindings"]["vrd-001"] == {"otel": otel, "core": "ok"}
         assert len(reversals()) == 1
+
+
+class TestSdkDisabledIsNotExporting:
+    """OTEL_SDK_DISABLED=true makes the SDK drop every record while common
+    5.11 still reports INSTALLED (opensrm-q3np). The OTel spec defines the
+    variable as case-insensitive "true"; anything else leaves the SDK on."""
+
+    @pytest.mark.parametrize(
+        ("value", "exporting"),
+        [
+            ("true", False), ("TRUE", False), (" true ", False),
+            ("false", True), ("", True), (None, True),
+        ],
+        ids=["true", "upper", "padded", "false", "empty", "unset"],
+    )
+    def test_telemetry_exporting(self, monkeypatch, value, exporting) -> None:
+        from nthlayer_override_adapter.app import telemetry_exporting
+
+        if value is None:
+            monkeypatch.delenv("OTEL_SDK_DISABLED", raising=False)
+        else:
+            monkeypatch.setenv("OTEL_SDK_DISABLED", value)
+        assert telemetry_exporting(TelemetryStatus.INSTALLED) is exporting
+        assert telemetry_exporting(TelemetryStatus.NO_ENDPOINT) is False
+
+    def test_responses_say_failed_under_sdk_disabled(self, monkeypatch, adapter_config) -> None:
+        from unittest.mock import MagicMock
+
+        from nthlayer_common.api_client import APIResult
+
+        monkeypatch.setenv("OTEL_SDK_DISABLED", "true")
+        app = build_app(adapter_config, telemetry=TelemetryStatus.INSTALLED)
+        fake_core = MagicMock()
+
+        async def _apply(verdict_id, payload):
+            return APIResult(ok=True, status_code=200, data={"id": verdict_id},
+                             error=None, detail=None)
+
+        fake_core.apply_override = _apply
+        app.state.core_client = fake_core
+        entry = TestTelemetryDecidesOtelBinding._ENTRY
+        resp = TestClient(app).post("/api/v1/overrides", json=entry)
+        assert resp.json()["bindings"]["vrd-001"] == {"otel": "failed", "core": "ok"}

@@ -122,11 +122,27 @@ telemetry setup reported at startup:
 
 - `ok`: an exporting provider is installed, either the adapter's or one
   already set by `opentelemetry-instrument`.
-- `failed`: there is no endpoint, or the OTel SDK is missing. The record is
-  dropped. The adapter also logs `otel_not_exporting` at WARNING at startup.
+- `failed`: there is no endpoint, the OTel SDK is missing, or
+  `OTEL_SDK_DISABLED=true`. The record is dropped. The adapter also logs
+  `otel_not_exporting` at WARNING at startup.
 
 Export errors happen later, on the exporter's background thread, so no
 per-request field can report them.
+
+### Buffering and shutdown
+
+Records go through the SDK's batch processor. Its queue holds 2048 records by
+default (`OTEL_BLRP_MAX_QUEUE_SIZE`), and records beyond that are dropped
+while the response still says `otel: ok`. One batch request emits one record
+per accepted override, up to `batch.max_size` (default 1000). If you raise
+`max_size`, or send large batches faster than the collector accepts them,
+raise the queue size to match.
+
+Buffered records are flushed at exit. With the collector unreachable, the
+flush waits up to `OTEL_EXPORTER_OTLP_TIMEOUT` (10s by default). 0.3 capped
+its own flush at 5s. Container runtimes usually allow 10s between SIGTERM and
+SIGKILL, so lower the timeout or lengthen the stop grace period if you need
+the flush to finish.
 
 ### Metrics
 

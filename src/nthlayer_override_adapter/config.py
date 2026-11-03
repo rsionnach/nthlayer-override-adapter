@@ -98,6 +98,13 @@ def load_config(path: str | Path) -> AdapterConfig:
             f"'otel' must be a mapping, got {type(otel_raw).__name__}"
         )
     otel_endpoint = otel_raw.get("endpoint")
+    # A number or list here would otherwise reach init_telemetry and crash
+    # startup with a traceback instead of a config error.
+    if otel_endpoint is not None and not isinstance(otel_endpoint, str):
+        raise ConfigError(
+            "otel.endpoint must be a string URL, got "
+            f"{type(otel_endpoint).__name__} {otel_endpoint!r}"
+        )
     batch_raw = raw.get("batch") or {}
     if not isinstance(batch_raw, dict):
         raise ConfigError(

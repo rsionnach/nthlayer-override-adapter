@@ -12,7 +12,7 @@ import uvicorn
 from nthlayer_common.telemetry import TelemetryStatus, init_telemetry
 from starlette.applications import Starlette
 
-from nthlayer_override_adapter.app import build_app
+from nthlayer_override_adapter.app import build_app, telemetry_exporting
 from nthlayer_override_adapter.config import AdapterConfig, ConfigError, load_config
 
 logger = structlog.get_logger(__name__)
@@ -73,12 +73,13 @@ def _init_telemetry(otel_endpoint: str | None) -> TelemetryStatus:
     running blind: every response will then say ``otel: failed``.
     """
     status = init_telemetry(TELEMETRY_SERVICE_NAME, endpoint=otel_endpoint)
-    if status.exporting:
+    if telemetry_exporting(status):
         logger.info("otel_initialised", status=status.value)
     else:
         logger.warning(
             "otel_not_exporting",
             status=status.value,
+            sdk_disabled=os.environ.get("OTEL_SDK_DISABLED"),
             hint="set otel.endpoint in the adapter config or "
                  "OTEL_EXPORTER_OTLP_ENDPOINT to a collector's OTLP gRPC "
                  "port (4317) to export nthlayer.reversal events",

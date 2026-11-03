@@ -283,3 +283,25 @@ class TestBatchMaxSize:
         )
         with pytest.raises(ConfigError, match="must be an integer"):
             load_config(target)
+
+
+class TestOtelEndpointType:
+    @pytest.mark.parametrize("value", ["4317", "[a, b]", "{host: x}", "true"])
+    def test_non_string_endpoint_is_a_config_error(self, tmp_path: Path, value: str) -> None:
+        """A number or list would otherwise crash startup inside init_telemetry
+        with a traceback instead of the usual config error and exit 2."""
+        target = tmp_path / "cfg.yaml"
+        target.write_text(
+            f"adapters: []\ncore:\n  url: http://core:8000\notel:\n  endpoint: {value}\n"
+        )
+        with pytest.raises(ConfigError, match="otel.endpoint must be a string"):
+            load_config(target)
+
+    def test_string_and_absent_endpoints_load(self, tmp_path: Path) -> None:
+        target = tmp_path / "cfg.yaml"
+        target.write_text(
+            "adapters: []\ncore:\n  url: http://core:8000\notel:\n  endpoint: http://c:4317\n"
+        )
+        assert load_config(target).otel_endpoint == "http://c:4317"
+        target.write_text("adapters: []\ncore:\n  url: http://core:8000\n")
+        assert load_config(target).otel_endpoint is None
