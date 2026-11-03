@@ -16,6 +16,26 @@ connector, a trace query, and a tail-sampling rule.
 - The HTTP API, the request and response shapes, the privacy behaviour and
   core binding are unchanged.
 
+## Migration order
+
+The order matters. Done the other way round, overrides are lost while every
+response still says `otel: ok`, because export failures happen after the
+response is sent.
+
+1. **Collector first.** Add the count connector and a `logs` pipeline on the
+   OTLP receiver (below), next to the existing spanmetrics configuration, and
+   reload. A 0.4 adapter sending logs to a receiver with no logs pipeline
+   loses every record.
+2. **Repoint dashboards, alerts and recording rules** from your spanmetrics
+   series for the `nthlayer.reversal` span to `nthlayer_reversals_total`. The
+   old series stops at the cutover, so a `rate()` across it shows a gap.
+3. **Deploy 0.4 with its config in the same rollout.** Rename
+   `privacy.emit_reason_on_span` to `privacy.emit_reason`, and give
+   `otel.endpoint` an `http://` scheme if the collector is plaintext. The two
+   versions do not share a config: 0.3 ignores `emit_reason`, and 0.4 refuses
+   `emit_reason_on_span`.
+4. **Remove spanmetrics** for `nthlayer.reversal` once nothing reads it.
+
 ## Breaking changes
 
 ### The event is a log record
@@ -113,7 +133,6 @@ OTLP **gRPC** log exporter.
   a bare `host:4317` can try TLS.
 - `OTEL_SERVICE_NAME` still overrides `service.name`
   (default `nthlayer-override-adapter`).
-- Buffered records are flushed at exit, as before.
 
 ### `otel` in responses reports whether telemetry is exporting
 
