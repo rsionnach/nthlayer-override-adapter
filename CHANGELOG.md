@@ -5,7 +5,7 @@
 
 ### ⚠ BREAKING CHANGES
 
-* nthlayer.reversal is an OTel log record, not a span; collectors counting it with spanmetrics must use the count connector. privacy.emit_reason_on_span is now privacy.emit_reason (old key refused). Bindings report otel: failed when telemetry is not exporting. override_collector_errors_total is removed. The OTLP exporter is gRPC only.
+* nthlayer.reversal is an OTel log record, not a span; collectors counting it with spanmetrics must use the count connector. privacy.emit_reason_on_span is now privacy.emit_reason (old key refused). Bindings report otel: failed when telemetry is not exporting. override_collector_errors_total is removed. The OTLP exporter is gRPC only. See [docs/upgrading-0.4.md](docs/upgrading-0.4.md) for the migration order.
 
 ### Features
 
@@ -15,7 +15,6 @@
 ### Bug Fixes
 
 * require nthlayer-common 5.11.0 ([c5c87ed](https://github.com/rsionnach/nthlayer-override-adapter/commit/c5c87ed45e0e8707b89607f912d7ed0260568566))
-* require nthlayer-common 5.11.0 ([823d574](https://github.com/rsionnach/nthlayer-override-adapter/commit/823d574f6164cccb99af65b9da9ba82e4ba6c3b3))
 
 
 ### Documentation
