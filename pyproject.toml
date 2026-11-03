@@ -18,12 +18,15 @@ dependencies = [
     # WHY 5.5.0 (opensrm-wo62.1): the version this repo is now built and tested
     # against (rule 16: the floor is the installed sibling). Bump it on
     # every nthlayer-common minor release: the floor guard fails until you do.
-    "nthlayer-common>=5.11.0,<6.0.0",
+    # [otel] (opensrm-a829): the OTel logs SDK and OTLP gRPC log exporter
+    # that init_telemetry installs for the nthlayer.reversal log record. It
+    # replaces the adapter's own opentelemetry-sdk / -exporter-otlp
+    # dependencies, which served the span pipeline removed in 0.4.0.
+    "nthlayer-common[otel]>=5.11.0,<6.0.0",
     "starlette>=0.40",
     "uvicorn>=0.30",
+    # emission.py detaches the trace context it emits under.
     "opentelemetry-api>=1.28",
-    "opentelemetry-sdk>=1.28",
-    "opentelemetry-exporter-otlp>=1.28",
     "pyyaml>=6.0",
     "structlog>=24.1.0",
     "prometheus-client>=0.21",

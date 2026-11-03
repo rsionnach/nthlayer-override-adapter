@@ -9,11 +9,7 @@ import sys
 
 import structlog
 import uvicorn
-from opentelemetry import trace
-from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
-from opentelemetry.sdk.resources import Resource
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from nthlayer_common.telemetry import TelemetryStatus, init_telemetry
 from starlette.applications import Starlette
 
 from nthlayer_override_adapter.app import build_app
@@ -38,15 +34,20 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+# The OTel service.name, unless OTEL_SERVICE_NAME overrides it.
+SERVICE_NAME = "nthlayer-override-adapter"
+
+
 def load_app(config_path: str | None) -> tuple[Starlette, AdapterConfig]:
-    """Load config from path (or env) and build the Starlette app.
+    """Load config from path (or env), initialise telemetry, build the app.
 
     Exits via ``SystemExit`` on config-not-found / config-invalid so
     the process fails loudly at startup rather than serving with an
     incomplete adapter set.
 
-    Returns both the app and the resolved config so the caller can
-    initialise OTel before serving.
+    Telemetry is initialised here, before the app is built, because the app
+    needs its status: whether events export decides each response's ``otel``
+    binding (ruling Q7).
     """
     resolved = config_path or os.environ.get("NTHLAYER_OVERRIDE_ADAPTER_CONFIG")
     if resolved is None:
@@ -59,54 +60,30 @@ def load_app(config_path: str | None) -> tuple[Starlette, AdapterConfig]:
     except ConfigError as exc:
         sys.stderr.write(f"error: {exc}\n")
         raise SystemExit(2) from exc
-    return build_app(cfg), cfg
+    return build_app(cfg, telemetry=_init_telemetry(cfg.otel_endpoint)), cfg
 
 
-def _init_otel(otel_endpoint: str | None) -> None:
-    """Initialise the OTel SDK so emitted spans reach the configured collector.
+def _init_telemetry(otel_endpoint: str | None) -> TelemetryStatus:
+    """Install nthlayer-common's OTLP log exporter for ``nthlayer.reversal``.
 
-    Resolves the OTLP endpoint from the explicit ``otel_endpoint`` config
-    value first, falling back to ``$OTEL_EXPORTER_OTLP_ENDPOINT``. When
-    neither is set, the SDK is not initialised — ``trace.get_tracer()``
-    in emission.py returns the no-op tracer and spans are silently dropped.
-    Log loudly so operators know the adapter is running blind.
+    The endpoint is ``otel.endpoint`` from the config, else
+    ``$OTEL_EXPORTER_OTLP_LOGS_ENDPOINT``, else ``$OTEL_EXPORTER_OTLP_ENDPOINT``.
+    The provider flushes at exit (nthlayer-common registers the hook). When
+    events will not export, log loudly so operators know the adapter is
+    running blind: every response will then say ``otel: failed``.
     """
-    endpoint = otel_endpoint or os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT")
-    if not endpoint:
+    status = init_telemetry(SERVICE_NAME, endpoint=otel_endpoint)
+    if status.exporting:
+        logger.info("otel_initialised", status=status.value)
+    else:
         logger.warning(
-            "otel_sdk_not_initialised",
-            reason="no_endpoint_configured",
+            "otel_not_exporting",
+            status=status.value,
             hint="set otel.endpoint in the adapter config or "
-                 "OTEL_EXPORTER_OTLP_ENDPOINT env var to export spans",
+                 "OTEL_EXPORTER_OTLP_ENDPOINT to a collector's OTLP gRPC "
+                 "port (4317) to export nthlayer.reversal events",
         )
-        return
-
-    resource = Resource.create(
-        {
-            "service.name": os.environ.get(
-                "OTEL_SERVICE_NAME", "nthlayer-override-adapter",
-            ),
-        },
-    )
-    provider = TracerProvider(resource=resource)
-    exporter = OTLPSpanExporter(endpoint=endpoint, insecure=True)
-    provider.add_span_processor(BatchSpanProcessor(exporter))
-    trace.set_tracer_provider(provider)
-
-    def _shutdown_otel() -> None:
-        try:
-            provider.force_flush(timeout_millis=5000)
-            provider.shutdown()
-        except Exception as exc:  # noqa: BLE001 — shutdown should never crash
-            logger.warning("otel_sdk_shutdown_failed", error=str(exc))
-
-    atexit.register(_shutdown_otel)
-    logger.info(
-        "otel_sdk_initialised",
-        endpoint=endpoint,
-        service_name=resource.attributes.get("service.name"),
-    )
-    logger.info("otel_sdk_shutdown_hook_registered")
+    return status
 
 
 def main() -> int:
@@ -114,10 +91,8 @@ def main() -> int:
     if args.command == "serve":
         config_path = args.config or os.environ.get("NTHLAYER_OVERRIDE_ADAPTER_CONFIG")
         app, cfg = load_app(args.config)
-        # Initialise OTel SDK with the resolved endpoint from config.
-        _init_otel(cfg.otel_endpoint)
 
-        # Register atexit hook for CoreAPIClient shutdown alongside OTel teardown.
+        # Register atexit hook for CoreAPIClient shutdown.
         def _shutdown_core_client() -> None:
             client = getattr(app.state, "core_client", None)
             if client is None:

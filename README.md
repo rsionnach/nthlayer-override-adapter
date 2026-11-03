@@ -1,10 +1,10 @@
 # nthlayer-override-adapter
 
-Standalone HTTP sidecar that accepts human-override events and emits them as `nthlayer.reversal` OTel spans (OpenSRM Addendum A1 §4.2; formerly `gen_ai.override`). Part of the [NthLayer](https://github.com/rsionnach/nthlayer) ecosystem; implements [`opensrm-jmy.7`](https://github.com/rsionnach/opensrm) — § 4 of `NTHLAYER_MISSING_CAPABILITIES_SPEC.md`.
+Standalone HTTP sidecar that accepts human-override events and emits them as `nthlayer.reversal` OTel log records (OpenSRM Addendum A1 §4.0, §4.2; a span before 0.4.0, see [docs/upgrading-0.4.md](docs/upgrading-0.4.md); formerly `gen_ai.override`). Part of the [NthLayer](https://github.com/rsionnach/nthlayer) ecosystem; implements [`opensrm-jmy.7`](https://github.com/rsionnach/opensrm) — § 4 of `NTHLAYER_MISSING_CAPABILITIES_SPEC.md`.
 
 ## Why
 
-`nthlayer-measure` computes judgment SLOs from override metrics consumed via OTel. Operators reviewing AI decisions live in heterogeneous tools (Slack, Jira, internal review UIs, email). The override-adapter is the translation layer: HTTP in, canonical OTel `nthlayer.reversal` spans out.
+`nthlayer-measure` computes judgment SLOs from override metrics consumed via OTel. Operators reviewing AI decisions live in heterogeneous tools (Slack, Jira, internal review UIs, email). The override-adapter is the translation layer: HTTP in, canonical OTel `nthlayer.reversal` log records out.
 
 ## Endpoints
 

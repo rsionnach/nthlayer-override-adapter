@@ -40,6 +40,7 @@ def register_canonical_routes(
     *,
     privacy: OverridePrivacyConfig,
     max_batch_size: int = 1000,
+    exporting: bool,
     emit_reason: bool = False,
 ) -> None:
     """Mount /api/v1/overrides and /api/v1/overrides/batch on the app."""
@@ -65,7 +66,7 @@ def register_canonical_routes(
         # identical redacted data. Core trusts pre_redacted=True and stores
         # the reviewer string as-is, so plaintext must never reach core.
         masked = apply_privacy(event, privacy)
-        otel_ok = emit_override(masked, emit_reason=emit_reason)
+        otel_ok = emit_override(masked, exporting=exporting, emit_reason=emit_reason)
         requests_total.labels(endpoint="canonical", status="accepted").inc()
 
         # C4 (opensrm-jmy.18): bind to core after OTel emission.
@@ -129,7 +130,7 @@ def register_canonical_routes(
 
         winners, result = _process_batch(entries)
 
-        # C5 (opensrm-jmy.18): emit-pass — one span per winner, then bind to core.
+        # C5 (opensrm-jmy.18): emit-pass — one log record per winner, then bind to core.
         # core_client and adapter_config are set on app.state by the app factory (C7)
         # or by test fixtures. When core_client is absent, skip binding (backward-compat).
         core_client = getattr(request.app.state, "core_client", None)
@@ -149,7 +150,7 @@ def register_canonical_routes(
             # Spec § 7: apply privacy once per winner; pass masked event to
             # both emit_override (OTel) and bind_to_core (HTTP POST to core).
             masked = apply_privacy(winner.event, privacy)
-            otel_ok = emit_override(masked, emit_reason=emit_reason)
+            otel_ok = emit_override(masked, exporting=exporting, emit_reason=emit_reason)
             result.accepted.append(decision_id)
             if core_client is not None:
                 core_binding = await bind_to_core(

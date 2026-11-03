@@ -1,7 +1,6 @@
-from unittest.mock import MagicMock
-
 import pytest
 from nthlayer_common.overrides import OverridePrivacyConfig
+from nthlayer_common.telemetry import TelemetryStatus
 from starlette.applications import Starlette
 from starlette.testclient import TestClient
 
@@ -9,9 +8,11 @@ from nthlayer_override_adapter.routes.canonical import register_canonical_routes
 
 
 @pytest.fixture
-def client(span_exporter) -> TestClient:
+def client() -> TestClient:
     app = Starlette()
-    register_canonical_routes(app, privacy=OverridePrivacyConfig(), max_batch_size=1000)
+    register_canonical_routes(
+        app, privacy=OverridePrivacyConfig(), max_batch_size=1000, exporting=True,
+    )
     return TestClient(app)
 
 
@@ -31,20 +32,24 @@ def _valid_body(**overrides: object) -> dict[str, object]:
 
 
 class TestSingleOverride:
-    def test_happy_path_201(self, client, span_exporter) -> None:
+    def test_happy_path_201(self, client, reversals) -> None:
         resp = client.post("/api/v1/overrides", json=_valid_body())
         assert resp.status_code == 201
         data = resp.json()
-        # No core_client on app.state → bindings key absent; otel emission confirmed by span.
+        # No core_client on app.state → bindings key absent; otel emission
+        # confirmed by the log record.
         assert data["accepted"] == ["vrd-001"]
         assert data["rejected"] == []
         assert "bindings" not in data
-        assert len(span_exporter.get_finished_spans()) == 1
+        (event,) = reversals()
+        assert event.attributes["nthlayer.reversal.decision_id"] == "vrd-001"
 
-    def test_cardinality_one_response_one_span(self, client, span_exporter) -> None:
+    def test_cardinality_one_response_one_record(self, client, reversals) -> None:
         client.post("/api/v1/overrides", json=_valid_body(decision_id="dec-a"))
         client.post("/api/v1/overrides", json=_valid_body(decision_id="dec-b"))
-        assert len(span_exporter.get_finished_spans()) == 2
+        assert [e.attributes["nthlayer.reversal.decision_id"] for e in reversals()] == [
+            "dec-a", "dec-b",
+        ]
 
     def test_missing_required_field_400(self, client) -> None:
         body = _valid_body()
@@ -144,22 +149,15 @@ class TestCanonicalSingleBindings:
         assert data["bindings"]["dec-missing"]["core"] == "failed"
         assert data["bindings"]["dec-missing"]["reason"] == "verdict_not_found"
 
-    def test_otel_failure_still_reports_to_core(
-        self, app_with_fake_core, monkeypatch
+    def test_otel_not_exporting_still_reports_to_core(
+        self, app_with_fake_core, reversals,
     ) -> None:
-        """Spec § 10 OTel-fails-core-still-runs: when the OTel exporter raises,
-        the response envelope must show {"otel": "failed", "core": "ok"}.
-        The HTTP 201 is unchanged — fail-open posture is preserved.
+        """Spec § 10 OTel-fails-core-still-runs: when telemetry is not
+        exporting (no endpoint configured), the response envelope shows
+        {"otel": "failed", "core": "ok"}. The HTTP 201 is unchanged —
+        fail-open posture is preserved (ruling Q7).
         """
-        import nthlayer_override_adapter.emission as emission_mod
-
-        # Make the tracer's start_as_current_span raise to exercise the
-        # fail-open except block and force emit_override to return False.
-        bad_tracer = MagicMock()
-        bad_tracer.start_as_current_span.side_effect = RuntimeError("exporter_down")
-        monkeypatch.setattr(emission_mod.trace, "get_tracer", lambda _name: bad_tracer)
-
-        app = app_with_fake_core(fake_status=200)
+        app = app_with_fake_core(fake_status=200, telemetry=TelemetryStatus.NO_ENDPOINT)
         client = TestClient(app)
         body = {
             "decision_id": "dec-otel-fail",
@@ -173,3 +171,4 @@ class TestCanonicalSingleBindings:
         assert data["accepted"] == ["dec-otel-fail"]
         assert data["bindings"]["dec-otel-fail"]["otel"] == "failed"
         assert data["bindings"]["dec-otel-fail"]["core"] == "ok"
+        assert "reason" not in data["bindings"]["dec-otel-fail"]

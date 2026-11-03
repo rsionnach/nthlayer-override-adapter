@@ -1,28 +1,33 @@
-"""OTel emission for override events — unparented ``nthlayer.reversal`` spans.
+"""OTel emission for override events — ``nthlayer.reversal`` log records.
 
-The span carries OpenSRM Addendum A1 §4.2's ``nthlayer.reversal.*``
-attributes (formerly ``gen_ai.override.*``, opensrm-1dua). A1 defines
-the four §4 events as OTel log-based events; carrying this one as a span
-is a known deviation, tracked as opensrm-a829.
+Each override is one OpenTelemetry log record (OpenSRM Addendum A1 §4.0,
+opensrm-a829 / opensrm-quqo), emitted through nthlayer-common's
+``emit_event``: ``event_name`` ``nthlayer.reversal``, A1 §4.2's
+``nthlayer.reversal.*`` attributes, no body, severity INFO, and a Timestamp
+of when the override happened (``OverrideEvent.timestamp``; ruling Q2).
+Until 0.4.0 it was an unparented span; collectors that counted it with the
+spanmetrics connector count the log record with the count connector
+instead (docs/upgrading-0.4.md).
 
 Privacy is applied ONCE at the route level (spec § 7): the sidecar is
 the single privacy boundary. Routes call ``apply_privacy`` to produce
 a masked copy of the event, then pass the masked event to both
-``emit_override`` (OTel span) and ``bind_to_core`` (HTTP POST to
-core). This ensures the OTel pipeline and core storage always receive
-the same redacted payload.
+``emit_override`` (OTel) and ``bind_to_core`` (HTTP POST to core). This
+ensures the OTel pipeline and core storage always receive the same
+redacted payload.
 
 Redaction (hashing, ``exclude_reason``) happens only in ``apply_privacy``.
-``emit_override`` expects a pre-masked event and applies one span-only
-filter: it leaves ``reason`` off the span unless ``emit_reason`` is set.
-That filter decides what goes on the span, not what is redacted; core is
+``emit_override`` expects a pre-masked event and applies one OTel-only
+filter: it leaves ``reason`` off the record unless ``emit_reason`` is set.
+That filter decides what goes to OTel, not what is redacted; core is
 unaffected.
 
-Rationale for unparented spans: overrides are operator decisions not
-bound to any service trace. Treating each as a standalone span
-preserves the semantic that 'an override is its own thing'; collectors
-route span → metric via spanmetricsconnector following standard OTel
-patterns. Do not "fix" this to inherit a trace context.
+The record is never parented to a trace: an override is an operator
+decision not bound to any service trace, so it is emitted under an empty
+context. Do not "fix" this to inherit the request's trace context. A1 §4.0 then requires §5's
+provenance attributes, but §5 (P1) defines them for ``nthlayer.decision``
+events only; a reversal's link to its decision is
+``nthlayer.reversal.decision_id``, which it always carries.
 """
 from __future__ import annotations
 
@@ -37,21 +42,17 @@ from nthlayer_common.overrides import (
     OverridePrivacyConfig,
     hash_reviewer,
 )
+from nthlayer_common.telemetry import emit_event
 from opentelemetry import context as otel_context
-from opentelemetry import trace
 
 from nthlayer_override_adapter.metrics import (
     binding_total,
-    collector_errors_total,
     emission_total,
     emit_duration_seconds,
 )
 from nthlayer_override_adapter.response import BindingResult
 
 logger = structlog.get_logger(__name__)
-
-_SPAN_NAME = REVERSAL_EVENT_NAME
-_TRACER_NAME = "nthlayer-override-adapter"
 
 
 def apply_privacy(
@@ -84,50 +85,47 @@ def apply_privacy(
     )
 
 
-def emit_override(event: OverrideEvent, *, emit_reason: bool = False) -> bool:
-    """Emit one unparented ``nthlayer.reversal`` span for this override.
+def emit_override(
+    event: OverrideEvent, *, exporting: bool, emit_reason: bool = False,
+) -> bool:
+    """Emit one ``nthlayer.reversal`` log record for this override.
 
     ``reason`` is free text, and A1 §4.2 makes it Opt-in: it is left off the
-    span unless ``emit_reason`` is set (config ``privacy.emit_reason_on_span``;
-    ruling R3). This governs the span only; core still receives the reason
+    record unless ``emit_reason`` is set (config ``privacy.emit_reason``;
+    ruling R3). This governs OTel only; core still receives the reason
     through ``bind_to_core``. ``exclude_reason`` removes it from both, upstream.
 
     Expects a pre-masked event — callers must call ``apply_privacy`` upstream
     and pass the masked result here. This function emits the event's reviewer
     string as-is; it does NOT redact (see ``emit_reason`` above).
 
-    Exporter failures are logged + counted but do not raise — fail-open
-    posture matches the rest of the ecosystem (caller still treats the HTTP
-    request as accepted).
+    ``exporting`` is the ``TelemetryStatus.exporting`` init_telemetry
+    returned at startup. Emitting never raises (``emit_event`` is fail-open),
+    and an export failure surfaces later, on the batch thread, so the only
+    honest per-request signal is whether the record can leave the process at
+    all (ruling Q7).
 
     Returns:
-        True if the span was emitted successfully, False if the internal
-        fail-open caught an exporter exception. Callers use this to populate
-        ``BindingResult.otel`` honestly (spec § 5.3, § 10).
+        ``exporting``: True when the record was handed to an exporting
+        provider, False when telemetry is off (no endpoint, or the SDK is
+        missing) and the record is dropped. Callers use it to populate
+        ``BindingResult.otel`` (spec § 5.3, § 10).
     """
     started = time.perf_counter()
-    tracer = trace.get_tracer(_TRACER_NAME)
-    unparented_context = otel_context.Context()
+    attributes = event.to_otel_attributes()
+    if not emit_reason:
+        attributes.pop(f"{REVERSAL_EVENT_NAME}.reason", None)
+    # Emit under an empty context: the logs SDK stamps a record with the
+    # current span's trace and span ids, and an override must not be
+    # parented to whatever request trace an instrumented server is in.
+    token = otel_context.attach(otel_context.Context())
     try:
-        with tracer.start_as_current_span(_SPAN_NAME, context=unparented_context) as span:
-            attributes = event.to_otel_attributes()
-            if not emit_reason:
-                attributes.pop(f"{REVERSAL_EVENT_NAME}.reason", None)
-            for key, value in attributes.items():
-                span.set_attribute(key, value)
-        emission_total.labels(result="emitted").inc()
-        return True
-    except Exception as exc:  # noqa: BLE001 — fail-open is intentional
-        emission_total.labels(result="failed").inc()
-        collector_errors_total.inc()
-        logger.warning(
-            "override_emission_failed",
-            decision_id=event.decision_id,
-            error=str(exc),
-        )
-        return False
+        emit_event(REVERSAL_EVENT_NAME, attributes, timestamp=event.timestamp)
     finally:
-        emit_duration_seconds.observe(time.perf_counter() - started)
+        otel_context.detach(token)
+    emission_total.labels(result="emitted" if exporting else "failed").inc()
+    emit_duration_seconds.observe(time.perf_counter() - started)
+    return exporting
 
 
 _STATUS_TO_REASON: dict[int, str] = {

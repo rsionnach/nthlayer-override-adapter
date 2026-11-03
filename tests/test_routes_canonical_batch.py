@@ -1,5 +1,6 @@
 import pytest
 from nthlayer_common.overrides import OverridePrivacyConfig
+from nthlayer_common.telemetry import TelemetryStatus
 from starlette.applications import Starlette
 from starlette.testclient import TestClient
 
@@ -7,9 +8,11 @@ from nthlayer_override_adapter.routes.canonical import register_canonical_routes
 
 
 @pytest.fixture
-def client(span_exporter) -> TestClient:
+def client() -> TestClient:
     app = Starlette()
-    register_canonical_routes(app, privacy=OverridePrivacyConfig(), max_batch_size=1000)
+    register_canonical_routes(
+        app, privacy=OverridePrivacyConfig(), max_batch_size=1000, exporting=True,
+    )
     return TestClient(app)
 
 
@@ -26,7 +29,7 @@ def _entry(decision_id: str, **overrides: object) -> dict[str, object]:
 
 
 class TestBatchHappyPath:
-    def test_scenario_3_one_hundred_overrides_all_accepted(self, client, span_exporter) -> None:
+    def test_scenario_3_one_hundred_overrides_all_accepted(self, client, reversals) -> None:
         body = {"overrides": [_entry(f"dec-{i:04d}") for i in range(100)]}
         resp = client.post("/api/v1/overrides/batch", json=body)
 
@@ -38,11 +41,11 @@ class TestBatchHappyPath:
         assert data["rejected"] == []
         assert data["duplicates"] == []
         assert data["errors"] == []
-        assert len(span_exporter.get_finished_spans()) == 100
+        assert len(reversals()) == 100
 
 
 class TestBatchDuplicates:
-    def test_scenario_4_last_in_array_wins(self, client, span_exporter) -> None:
+    def test_scenario_4_last_in_array_wins(self, client, reversals) -> None:
         # dec-002 appears at indices 1, 3, and 5 — last wins (idx 5).
         body = {
             "overrides": [
@@ -61,17 +64,17 @@ class TestBatchDuplicates:
         assert data["duplicates"] == [
             {"decision_id": "dec-002", "applied_at_index": 5, "discarded_indices": [1, 3]}
         ]
-        # Cardinality: 4 unique accepted decision_ids → 4 spans, NOT 6.
-        spans = span_exporter.get_finished_spans()
-        assert len(spans) == 4
-        # The dec-002 span carries the LAST corrected_action ("escalate").
-        dec_002 = [s for s in spans if s.attributes["nthlayer.reversal.decision_id"] == "dec-002"]
+        # Cardinality: 4 unique accepted decision_ids → 4 records, NOT 6.
+        events = reversals()
+        assert len(events) == 4
+        # The dec-002 record carries the LAST corrected_action ("escalate").
+        dec_002 = [e for e in events if e.attributes["nthlayer.reversal.decision_id"] == "dec-002"]
         assert len(dec_002) == 1
         assert dec_002[0].attributes["nthlayer.reversal.new_value"] == "escalate"
 
 
 class TestBatchRejected:
-    def test_invalid_entry_recorded_other_entries_accepted(self, client, span_exporter) -> None:
+    def test_invalid_entry_recorded_other_entries_accepted(self, client, reversals) -> None:
         bad = _entry("dec-002")
         del bad["reviewer"]
         body = {"overrides": [_entry("dec-001"), bad, _entry("dec-003")]}
@@ -86,11 +89,13 @@ class TestBatchRejected:
         assert len(data["rejected"]) == 1
         assert data["rejected"][0]["index"] == 1
         assert "reviewer" in data["rejected"][0]["reason"]
-        assert len(span_exporter.get_finished_spans()) == 2
+        assert [e.attributes["nthlayer.reversal.decision_id"] for e in reversals()] == [
+            "dec-001", "dec-003",
+        ]
 
 
 class TestCardinalityInvariant:
-    def test_response_counts_match_emission_cardinality(self, client, span_exporter) -> None:
+    def test_response_counts_match_emission_cardinality(self, client, reversals) -> None:
         body = {
             "overrides": [
                 _entry("dec-a"),                          # 0 — accepted
@@ -102,14 +107,12 @@ class TestCardinalityInvariant:
         resp = client.post("/api/v1/overrides/batch", json=body)
         data = resp.json()
 
-        emitted_ids = {
-            s.attributes["nthlayer.reversal.decision_id"]
-            for s in span_exporter.get_finished_spans()
-        }
+        events = reversals()
+        emitted_ids = {e.attributes["nthlayer.reversal.decision_id"] for e in events}
 
         # Response claims about cardinality:
-        assert set(data["accepted"]) == emitted_ids
-        assert len(span_exporter.get_finished_spans()) == len(data["accepted"])
+        assert set(data["accepted"]) == emitted_ids == {"dec-a", "dec-b", "dec-c"}
+        assert len(events) == len(data["accepted"])
 
 
 class TestBatchMalformed:
@@ -123,9 +126,11 @@ class TestBatchMalformed:
 
 
 class TestBatchSizeCap:
-    def test_413_above_cap(self, span_exporter) -> None:
+    def test_413_above_cap(self, reversals) -> None:
         app = Starlette()
-        register_canonical_routes(app, privacy=OverridePrivacyConfig(), max_batch_size=3)
+        register_canonical_routes(
+            app, privacy=OverridePrivacyConfig(), max_batch_size=3, exporting=True,
+        )
         client = TestClient(app)
 
         # Post 4 valid entries, cap is 3.
@@ -137,12 +142,14 @@ class TestBatchSizeCap:
         assert "batch exceeds" in data["detail"]
         assert "4 entries" in data["detail"]
         assert "limit 3" in data["detail"]
-        # No spans should be emitted.
-        assert len(span_exporter.get_finished_spans()) == 0
+        # No records should be emitted.
+        assert reversals() == []
 
-    def test_status_rejected_when_all_entries_invalid(self, span_exporter) -> None:
+    def test_status_rejected_when_all_entries_invalid(self, reversals) -> None:
         app = Starlette()
-        register_canonical_routes(app, privacy=OverridePrivacyConfig(), max_batch_size=1000)
+        register_canonical_routes(
+            app, privacy=OverridePrivacyConfig(), max_batch_size=1000, exporting=True,
+        )
         client = TestClient(app)
 
         # Post 2 entries, each missing 'reviewer' (invalid).
@@ -168,6 +175,7 @@ class TestBatchSizeCap:
         data = resp.json()
         assert data["accepted"] == []
         assert len(data["rejected"]) == 2
+        assert reversals() == []
 
 
 class TestBatchEmptyOverrides:
@@ -210,6 +218,7 @@ class TestBatchBindings:
         # Cardinality invariant: bindings.keys() == set(accepted)
         assert set(data["bindings"].keys()) == set(data["accepted"])
         for entry in data["bindings"].values():
+            assert entry["otel"] == "ok"
             assert entry["core"] == "ok"
             assert "reason" not in entry  # core==ok → no reason
 
@@ -263,3 +272,34 @@ class TestBatchBindings:
         for entry in data["bindings"].values():
             assert entry["core"] == "failed"
             assert entry["reason"] == "verdict_not_found"
+
+    def test_batch_otel_not_exporting_per_id(self, app_with_fake_core, reversals):
+        """Telemetry off (ruling Q7): every id says otel failed; core unaffected."""
+        from starlette.testclient import TestClient
+        client = TestClient(
+            app_with_fake_core(fake_status=200, telemetry=TelemetryStatus.NO_ENDPOINT),
+        )
+        body = {
+            "overrides": [
+                {
+                    "decision_id": "dec-a", "service": "s",
+                    "corrected_action": "approve", "reviewer": "h",
+                },
+                {
+                    "decision_id": "dec-b", "service": "s",
+                    "corrected_action": "approve", "reviewer": "h",
+                },
+            ]
+        }
+        resp = client.post("/api/v1/overrides/batch", json=body)
+        assert resp.status_code == 201
+        data = resp.json()
+        assert set(data["bindings"].keys()) == {"dec-a", "dec-b"}
+        for entry in data["bindings"].values():
+            assert entry["otel"] == "failed"
+            assert entry["core"] == "ok"
+            assert "reason" not in entry
+        # Cardinality holds on log records even when they will not export.
+        assert {e.attributes["nthlayer.reversal.decision_id"] for e in reversals()} == {
+            "dec-a", "dec-b",
+        }

@@ -19,39 +19,61 @@ class TestLoadMinimal:
         cfg = load_config(target)
         assert cfg.privacy.plaintext_reviewer is False
         assert cfg.privacy.exclude_reason is False
-        # A1 §4.2 reason is Opt-in on the span (opensrm-1dua, ruling R3).
-        assert cfg.emit_reason_on_span is False
+        # A1 §4.2 reason is Opt-in on the event (opensrm-1dua, ruling R3).
+        assert cfg.emit_reason is False
 
-    def test_emit_reason_on_span_defaults_off_when_constructed_directly(self) -> None:
+    def test_emit_reason_defaults_off_when_constructed_directly(self) -> None:
         from nthlayer_override_adapter.config import AdapterConfig, CoreConfig
 
         cfg = AdapterConfig(
             adapters=[], privacy=OverridePrivacyConfig(), core=CoreConfig(url="http://core")
         )
-        assert cfg.emit_reason_on_span is False
+        assert cfg.emit_reason is False
 
-    def test_example_config_loads_with_reason_off_the_span(self) -> None:
+    def test_example_config_loads_with_reason_off(self) -> None:
         example = Path(__file__).parent.parent / "override-adapter-config.yaml.example"
-        assert load_config(example).emit_reason_on_span is False
+        assert load_config(example).emit_reason is False
 
-    def test_emit_reason_on_span_opt_in(self, tmp_path: Path) -> None:
+    @pytest.mark.parametrize(("value", "expected"), [("true", True), ("false", False)])
+    def test_emit_reason_explicit(self, tmp_path: Path, value: str, expected: bool) -> None:
         target = tmp_path / "cfg.yaml"
         target.write_text(
             "adapters: []\ncore:\n  url: http://core:8000\n"
-            "privacy:\n  emit_reason_on_span: true\n"
+            f"privacy:\n  emit_reason: {value}\n"
         )
-        assert load_config(target).emit_reason_on_span is True
+        assert load_config(target).emit_reason is expected
+
+    def test_emit_reason_default_when_privacy_present_without_it(self, tmp_path: Path) -> None:
+        target = tmp_path / "cfg.yaml"
+        target.write_text(
+            "adapters: []\ncore:\n  url: http://core:8000\n"
+            "privacy:\n  plaintext_reviewer: false\n"
+        )
+        assert load_config(target).emit_reason is False
 
     @pytest.mark.parametrize("value", ['"false"', "1", "yes please"])
-    def test_emit_reason_on_span_must_be_a_boolean(self, tmp_path: Path, value: str) -> None:
+    def test_emit_reason_must_be_a_boolean(self, tmp_path: Path, value: str) -> None:
         # A quoted "false" would be truthy under bool(); refuse it rather than
-        # put free text on the span the operator meant to keep off.
+        # put free text on the event the operator meant to keep off.
+        target = tmp_path / "cfg.yaml"
+        target.write_text(
+            "adapters: []\ncore:\n  url: http://core:8000\n"
+            f"privacy:\n  emit_reason: {value}\n"
+        )
+        with pytest.raises(ConfigError, match=r"privacy\.emit_reason must be"):
+            load_config(target)
+
+    @pytest.mark.parametrize("value", ["true", "false", '"yes"', "null"])
+    def test_old_emit_reason_on_span_key_is_refused(self, tmp_path: Path, value: str) -> None:
+        # Renamed in 0.4.0 (ruling Q8). Ignoring the old key would silently
+        # drop an operator's opt-in, so any value of it is an error that
+        # names the new key.
         target = tmp_path / "cfg.yaml"
         target.write_text(
             "adapters: []\ncore:\n  url: http://core:8000\n"
             f"privacy:\n  emit_reason_on_span: {value}\n"
         )
-        with pytest.raises(ConfigError, match="emit_reason_on_span"):
+        with pytest.raises(ConfigError, match=r"renamed privacy\.emit_reason\b"):
             load_config(target)
 
     def test_otel_endpoint_optional(self, tmp_path: Path) -> None:
