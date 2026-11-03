@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.4.0](https://github.com/rsionnach/nthlayer-override-adapter/compare/v0.3.2...v0.4.0) (2026-11-03)
+
+
+### ⚠ BREAKING CHANGES
+
+* nthlayer.reversal is an OTel log record, not a span; collectors counting it with spanmetrics must use the count connector. privacy.emit_reason_on_span is now privacy.emit_reason (old key refused). Bindings report otel: failed when telemetry is not exporting. override_collector_errors_total is removed. The OTLP exporter is gRPC only. See [docs/upgrading-0.4.md](docs/upgrading-0.4.md) for the migration order.
+
+### Features
+
+* emit nthlayer.reversal as an OTel log record [opensrm-a829] ([22aa9c0](https://github.com/rsionnach/nthlayer-override-adapter/commit/22aa9c04c53e477a5804ba2a92e9fe61e920c805))
+
+
+### Bug Fixes
+
+* require nthlayer-common 5.11.0 ([c5c87ed](https://github.com/rsionnach/nthlayer-override-adapter/commit/c5c87ed45e0e8707b89607f912d7ed0260568566))
+
+
+### Documentation
+
+* **upgrading-0.4:** add the migration order; drop a duplicated flush line [opensrm-a829] ([19b4fb9](https://github.com/rsionnach/nthlayer-override-adapter/commit/19b4fb9a5126ebe2d413d5c2d05fa10122e82518))
+
 ## [0.3.2](https://github.com/rsionnach/nthlayer-override-adapter/compare/v0.3.1...v0.3.2) (2026-11-02)
 
 
