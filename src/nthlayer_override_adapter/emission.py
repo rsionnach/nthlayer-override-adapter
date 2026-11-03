@@ -106,11 +106,10 @@ def emit_override(
     all (ruling Q7).
 
     Returns:
-        ``exporting``, passed through unchanged: it is the binding's
-        ``otel`` value (``ok`` if True). True when the record was handed to an exporting
-        provider, False when telemetry is off (no endpoint, or the SDK is
-        missing) and the record is dropped. Callers use it to populate
-        ``BindingResult.otel`` (spec § 5.3, § 10).
+        ``exporting``, unchanged; it becomes ``BindingResult.otel``
+        (``ok`` if True; spec § 5.3, § 10). True when the record was
+        handed to an exporting provider; False when telemetry is off (no
+        endpoint, or the SDK is missing) and the record is dropped.
     """
     started = time.perf_counter()
     attributes = event.to_otel_attributes()

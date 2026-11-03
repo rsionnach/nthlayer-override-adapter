@@ -39,8 +39,8 @@ def register_canonical_routes(
     app: Starlette,
     *,
     privacy: OverridePrivacyConfig,
-    max_batch_size: int = 1000,
     exporting: bool,
+    max_batch_size: int = 1000,
     emit_reason: bool = False,
 ) -> None:
     """Mount /api/v1/overrides and /api/v1/overrides/batch on the app."""
