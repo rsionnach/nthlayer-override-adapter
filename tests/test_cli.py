@@ -64,7 +64,7 @@ class TestInitTelemetry:
         with mock.patch(_INIT, return_value=status) as init:
             assert _init_telemetry(endpoint) is status
         init.assert_called_once_with("nthlayer-override-adapter", endpoint=endpoint)
-        assert cli.SERVICE_NAME == "nthlayer-override-adapter"
+        assert cli.TELEMETRY_SERVICE_NAME == "nthlayer-override-adapter"
 
 
 class TestLoadAppUsesTelemetryStatus:
@@ -99,7 +99,7 @@ class TestLoadAppUsesTelemetryStatus:
         with mock.patch(_INIT, return_value=TelemetryStatus.NO_ENDPOINT) as init:
             _, cfg = load_app(str(p))
         assert cfg.otel_endpoint == "http://collector:4317"
-        init.assert_called_once_with(cli.SERVICE_NAME, endpoint="http://collector:4317")
+        init.assert_called_once_with(cli.TELEMETRY_SERVICE_NAME, endpoint="http://collector:4317")
 
     @pytest.mark.parametrize(
         ("status", "otel"),

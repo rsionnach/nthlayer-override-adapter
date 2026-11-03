@@ -17,6 +17,9 @@ from nthlayer_override_adapter.config import AdapterConfig, ConfigError, load_co
 
 logger = structlog.get_logger(__name__)
 
+# The OTel service.name, unless OTEL_SERVICE_NAME overrides it.
+TELEMETRY_SERVICE_NAME = "nthlayer-override-adapter"
+
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="nthlayer-override-adapter")
@@ -34,10 +37,6 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-# The OTel service.name, unless OTEL_SERVICE_NAME overrides it.
-SERVICE_NAME = "nthlayer-override-adapter"
-
-
 def load_app(config_path: str | None) -> tuple[Starlette, AdapterConfig]:
     """Load config from path (or env), initialise telemetry, build the app.
 
@@ -47,7 +46,8 @@ def load_app(config_path: str | None) -> tuple[Starlette, AdapterConfig]:
 
     Telemetry is initialised here, before the app is built, because the app
     needs its status: whether events export decides each response's ``otel``
-    binding (ruling Q7).
+    binding (ruling Q7). The config is returned too, for callers that log or
+    inspect what was loaded.
     """
     resolved = config_path or os.environ.get("NTHLAYER_OVERRIDE_ADAPTER_CONFIG")
     if resolved is None:
@@ -72,7 +72,7 @@ def _init_telemetry(otel_endpoint: str | None) -> TelemetryStatus:
     events will not export, log loudly so operators know the adapter is
     running blind: every response will then say ``otel: failed``.
     """
-    status = init_telemetry(SERVICE_NAME, endpoint=otel_endpoint)
+    status = init_telemetry(TELEMETRY_SERVICE_NAME, endpoint=otel_endpoint)
     if status.exporting:
         logger.info("otel_initialised", status=status.value)
     else:

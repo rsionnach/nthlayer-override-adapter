@@ -182,7 +182,7 @@ def _process_batch(
     """Walk entries in array order. Last-in-array wins on duplicate decision_id.
 
     Dedup-pass only: resolves the winning entry per decision_id and populates
-    rejected/duplicates in BatchResult, but does NOT emit spans or append to
+    rejected/duplicates in BatchResult, but does NOT emit events or append to
     accepted. The caller (async post_batch) owns the emit-pass so it can
     await bind_to_core per winner.
 

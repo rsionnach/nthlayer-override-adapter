@@ -24,9 +24,9 @@ unaffected.
 
 The record is never parented to a trace: an override is an operator
 decision not bound to any service trace, so it is emitted under an empty
-context. Do not "fix" this to inherit the request's trace context. A1 §4.0 then requires §5's
-provenance attributes, but §5 (P1) defines them for ``nthlayer.decision``
-events only; a reversal's link to its decision is
+context. Do not "fix" this to inherit the request's trace context. A1 §4.0
+then requires §5's provenance attributes, but §5 (P1) defines them for
+``nthlayer.decision`` events only; a reversal's link to its decision is
 ``nthlayer.reversal.decision_id``, which it always carries.
 """
 from __future__ import annotations
@@ -106,7 +106,8 @@ def emit_override(
     all (ruling Q7).
 
     Returns:
-        ``exporting``: True when the record was handed to an exporting
+        ``exporting``, passed through unchanged: it is the binding's
+        ``otel`` value (``ok`` if True). True when the record was handed to an exporting
         provider, False when telemetry is off (no endpoint, or the SDK is
         missing) and the record is dropped. Callers use it to populate
         ``BindingResult.otel`` (spec § 5.3, § 10).
