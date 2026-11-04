@@ -22,7 +22,7 @@ dependencies = [
     # that init_telemetry installs for the nthlayer.reversal log record. It
     # replaces the adapter's own opentelemetry-sdk / -exporter-otlp
     # dependencies, which served the span pipeline removed in 0.4.0.
-    "nthlayer-common[otel]>=5.11.0,<6.0.0",
+    "nthlayer-common[otel]>=5.12.0,<6.0.0",
     "starlette>=0.40",
     "uvicorn>=0.30",
     # emission.py emits under an empty OTel context, so the event is unparented.
